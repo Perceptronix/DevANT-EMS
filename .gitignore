@@ -1,29 +1,42 @@
-# =========================
-# Dependencies
-# =========================
+# =========================================================
+# DevANT-EMS .gitignore
+# =========================================================
+
+# =========================================================
+# Node.js
+# =========================================================
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# =========================================================
+# Python
+# =========================================================
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
+*.so
+.python-version
 
-# Chroma runtime storage
-backend/data/chroma/
-*.sqlite3
-*.bin
-
-
+# Virtual Environments
+DevANT-EMS/
 .venv/
 venv/
 env/
-tests/
+ENV/
 
-# Python
-.python-version
+# Python Build
+build/
+dist/
+*.egg-info/
+*.egg
 pip-wheel-metadata/
 
-# =========================
-# Environment / Secrets
-# =========================
+# =========================================================
+# Environment Variables / Secrets
+# =========================================================
 .env
 .env.*
 !.env.example
@@ -31,88 +44,142 @@ pip-wheel-metadata/
 *.pem
 *.key
 *.crt
+*.p12
+*.pfx
 
-# =========================
-# AI / Vector DB / Embeddings
-# =========================
+# =========================================================
+# Supabase / Database
+# =========================================================
+*.sqlite3
+*.db
+*.db-journal
+
+# =========================================================
+# AI / Embeddings / Vector Storage
+# =========================================================
+
+# ChromaDB
 backend/data/chroma/
-backend/models/
-backend/cache/
+chroma/
+
+# FAISS
 *.faiss
 *.index
 
-# Sentence transformer cache
+# Embedding Models
+backend/models/
+backend/cache/
+
+# HuggingFace / Transformers Cache
 .cache/
 huggingface/
 hf_cache/
 
-# =========================
-# Build Outputs
-# =========================
-dist/
-build/
-coverage/
-*.egg-info/
-*.egg
+# Torch Cache
+.torch/
 
-# Frontend
+# Sentence Transformer Cache
+sentence_transformers/
+
+# =========================================================
+# OpenTelemetry / Runtime Data
+# =========================================================
+otel/
+telemetry/
+*.otel
+
+# =========================================================
+# Runtime State
+# =========================================================
+backend/data/*.json
+backend/data/*.lock
+backend/runtime/
+runtime/
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Keep gitkeep + sample datasets
+!backend/data/.gitkeep
+!backend/data/samples/
+
+# =========================================================
+# Logs
+# =========================================================
+*.log
+logs/
+backend/logs/
+frontend/logs/
+
+# =========================================================
+# Frontend Build Outputs
+# =========================================================
 frontend/dist/
+frontend/build/
 frontend/.vite/
+frontend/.next/
 
-# =========================
+# =========================================================
+# Coverage / Testing
+# =========================================================
+coverage/
+.coverage
+htmlcov/
+
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+tests/
+backend/tests/__pycache__/
+
+backend/tests/benchmark_report.json
+
+# =========================================================
 # IDE / Editor
-# =========================
+# =========================================================
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# =========================
+# JetBrains
+*.iml
+
+# =========================================================
 # OS Files
-# =========================
+# =========================================================
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# =========================
-# Logs
-# =========================
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
+# =========================================================
+# Docker
+# =========================================================
+docker-compose.override.yml
 
-# =========================
-# Testing / Benchmarks
-# =========================
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-ruff_cache/
+# =========================================================
+# Kubernetes
+# =========================================================
+*.kubeconfig
 
-backend/tests/benchmark_report.json
+# =========================================================
+# Miscellaneous
+# =========================================================
+*.bak
+*.backup
+*.old
 
-# =========================
-# Runtime State
-# =========================
-backend/data/*.json
-backend/data/*.lock
+# =========================================================
+# Git Safety
+# =========================================================
+secrets/
+credentials/
+private/
 
-!backend/data/.gitkeep
-
-# Keep sample datasets if needed
-!backend/data/samples/
-
-# =========================
-# Jupyter / Research
-# =========================
-.ipynb_checkpoints/
-
-# =========================
-# Temporary Files
-# =========================
-*.tmp
-*.temp
-tmp/
-temp/
+# =========================================================
+# Keep Important Templates
+# =========================================================
+!.env.example
+!.gitkeep

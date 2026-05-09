@@ -9,7 +9,8 @@ from sqlalchemy import (
     Column, String, Integer, Float, DateTime, 
     ForeignKey, JSON, Index, Text, TIMESTAMP
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import uuid
@@ -54,6 +55,8 @@ class RawEvent(Base):
     environment = Column(String(50), default="production")
     message = Column(Text, nullable=True)
     stack_trace = Column(Text, nullable=True)
+    embedding = Column(Vector(384), nullable=True)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="SET NULL"), nullable=True)
     fingerprint = Column(String(255), nullable=True)
     extra_metadata = Column(JSONB, default={})
     occurred_at = Column(TIMESTAMP(timezone=True), nullable=False)
@@ -61,11 +64,17 @@ class RawEvent(Base):
 
     # Relationships
     project = relationship("Project", back_populates="raw_events")
-    clusters = relationship("ErrorCluster", back_populates="representative_event")
+    clusters = relationship(
+        "ErrorCluster",
+        back_populates="representative_event",
+        foreign_keys="ErrorCluster.representative_event_id",
+    )
+    cluster = relationship("ErrorCluster", foreign_keys=[cluster_id], back_populates="events")
 
     __table_args__ = (
         Index("idx_raw_events_project_id", "project_id"),
         Index("idx_raw_events_fingerprint", "fingerprint"),
+        Index("idx_raw_events_cluster_id", "cluster_id"),
         Index("idx_raw_events_occurred_at", "occurred_at"),
         Index("idx_raw_events_created_at", "created_at"),
     )
@@ -103,7 +112,12 @@ class ErrorCluster(Base):
 
     # Relationships
     project = relationship("Project", back_populates="error_clusters")
-    representative_event = relationship("RawEvent", back_populates="clusters")
+    representative_event = relationship(
+        "RawEvent",
+        back_populates="clusters",
+        foreign_keys=[representative_event_id],
+    )
+    events = relationship("RawEvent", foreign_keys="RawEvent.cluster_id", back_populates="cluster")
     embedding = relationship("ClusterEmbedding", uselist=False, back_populates="cluster", cascade="all, delete-orphan")
     incidents = relationship("Incident", back_populates="cluster", cascade="all, delete-orphan")
     mutes = relationship("Mute", back_populates="cluster", cascade="all, delete-orphan")
@@ -135,7 +149,7 @@ class ClusterEmbedding(Base):
     __tablename__ = "cluster_embeddings"
 
     cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="CASCADE"), primary_key=True)
-    embedding = Column(ARRAY(Float), nullable=True)  # 384-dimensional vector
+    embedding = Column(Vector(384), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
     # Relationships

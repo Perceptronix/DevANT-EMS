@@ -110,6 +110,19 @@ class ErrorClusterer:
             reasoning_parts.append(f"Stage 2 (regex): {len(regex_clusters)} clusters, {len(remaining)} remaining")
         else:
             regex_clusters = []
+
+        # Stage 2.5: pgvector semantic bootstrap against historical raw_events
+        semantic_clusters = []
+        if remaining:
+            try:
+                semantic_clusters, remaining = await self._semantic_db_cluster(remaining)
+                if semantic_clusters:
+                    reasoning_parts.append(
+                        f"Stage 2.5 (pgvector): {len(semantic_clusters)} clusters, {len(remaining)} remaining"
+                    )
+            except Exception as e:
+                logger.warning(f"pgvector semantic clustering failed: {e}")
+                semantic_clusters = []
         
         # Stage 3: LLM semantic clustering on remaining (if > 1)
         if len(remaining) > 1 and self.llm:
@@ -129,7 +142,7 @@ class ErrorClusterer:
             llm_clusters = []
         
         # Combine all clusters
-        all_clusters = strict_clusters + regex_clusters + llm_clusters
+        all_clusters = strict_clusters + regex_clusters + semantic_clusters + llm_clusters
         
         # Stage 4: Merge similar clusters
         if len(all_clusters) > 3:
@@ -348,6 +361,66 @@ Each group contains cluster indices that should be merged."""),
                     merged.append(new_cluster)
         
         return merged
+
+    async def _semantic_db_cluster(self, errors: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Group errors by nearest historical raw_event embedding using pgvector."""
+        try:
+            from embeddings import get_embedding_service, get_similarity_search_service
+        except Exception as exc:
+            logger.info(f"pgvector bootstrap unavailable: {exc}")
+            return [], errors
+
+        embedder = get_embedding_service()
+        search_service = get_similarity_search_service()
+
+        groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        remaining: List[Dict[str, Any]] = []
+
+        for error in errors:
+            try:
+                semantic_text = self._build_semantic_text(error)
+                embedding = embedder.generate_embedding(semantic_text)
+                matches = search_service.search_similar_events(
+                    embedding=embedding,
+                    similarity_threshold=0.82,
+                    limit=1,
+                    project_id=error.get("project_id"),
+                )
+
+                if matches:
+                    best = matches[0]
+                    key = best.get("fingerprint") or best.get("id") or self._extract_signature(error)
+                    groups[key].append(error)
+                else:
+                    remaining.append(error)
+            except Exception as exc:
+                logger.warning(f"pgvector semantic match failed: {exc}")
+                remaining.append(error)
+
+        semantic_clusters: List[Dict[str, Any]] = []
+        for fingerprint, group_errors in groups.items():
+            if len(group_errors) >= 2:
+                cluster = self._create_cluster(group_errors)
+                cluster["matched_historical_fingerprint"] = fingerprint
+                semantic_clusters.append(cluster)
+            else:
+                remaining.extend(group_errors)
+
+        return semantic_clusters, remaining
+
+    def _build_semantic_text(self, error: Dict[str, Any]) -> str:
+        """Build compact semantic text for embeddings/search."""
+        parts = [
+            error.get("message", ""),
+            error.get("stack_trace", ""),
+            error.get("stacktrace", ""),
+            error.get("module", ""),
+            error.get("function", ""),
+            error.get("container", ""),
+            error.get("error_type", ""),
+            error.get("exception_type", ""),
+        ]
+        return "\n".join(str(part) for part in parts if part)
     
     async def _llm_cluster(self, errors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Use LLM to semantically cluster errors."""

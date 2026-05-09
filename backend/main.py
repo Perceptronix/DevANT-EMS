@@ -205,7 +205,20 @@ def _generate_github_issue_preview(analysis: Dict[str, Any]) -> Dict[str, Any]:
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Error Monitoring Agent Demo...")
+    try:
+        from orchestrator.cluster_scheduler import start_scheduler
+
+        start_scheduler()
+        logger.info("Scheduled cluster processing enabled")
+    except Exception as exc:
+        logger.error("Failed to start scheduled cluster processing: %s", exc, exc_info=True)
     yield
+    try:
+        from orchestrator.cluster_scheduler import stop_scheduler
+
+        stop_scheduler()
+    except Exception as exc:
+        logger.error("Failed to stop scheduled cluster processing: %s", exc, exc_info=True)
     logger.info("Shutting down...")
 
 
@@ -350,6 +363,7 @@ async def analyze_repository_endpoint(req: RepoAnalyzeRequest):
                 try:
                     from pipeline.unified_orchestrator import UnifiedOrchestrator
                     from pipeline.db_persistence import persist_orchestrator_result
+                    from pipeline.cluster_processing import get_cluster_processing_pipeline
                     orch = UnifiedOrchestrator()
                     result = orch.run(
                         repo_url=req.repo_url,
@@ -362,6 +376,20 @@ async def analyze_repository_endpoint(req: RepoAnalyzeRequest):
                     # Persist result to database
                     persist_counts = persist_orchestrator_result(run_id, result)
                     logger.info(f"[{run_id}] DB persistence: {persist_counts}")
+
+                    # Process recent unclustered events into semantic event groups
+                    try:
+                        cluster_pipeline = get_cluster_processing_pipeline(
+                            min_cluster_size=3,
+                            min_samples=2,
+                            merge_similarity_threshold=0.90,
+                            fetch_limit=500,
+                            lookback_minutes=180,
+                        )
+                        cluster_counts = cluster_pipeline.process_recent_unclustered_events()
+                        logger.info(f"[{run_id}] Cluster processing: {cluster_counts}")
+                    except Exception as cluster_exc:
+                        logger.error(f"[{run_id}] Cluster processing failed: {cluster_exc}", exc_info=True)
                     
                     finalize_run(run_id, result)
                     logger.info(f"[{run_id}] Run finalized.")

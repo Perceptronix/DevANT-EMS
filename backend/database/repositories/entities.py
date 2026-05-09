@@ -151,10 +151,18 @@ class ClusterEmbeddingRepository(BaseRepository[ClusterEmbedding]):
 
     def semantic_search(self, embedding: List[float], limit: int = 10) -> List[tuple]:
         """Search for similar clusters using vector similarity."""
-        # This requires pgvector support and a custom query
-        # For now, return empty - actual implementation depends on pgvector setup
-        logger.warning("Semantic search not yet implemented")
-        return []
+        try:
+            from embeddings import get_similarity_search_service
+
+            service = get_similarity_search_service(session=self.db)
+            return service.search_similar_events(
+                embedding=embedding,
+                similarity_threshold=0.0,
+                limit=limit,
+            )
+        except Exception as exc:
+            logger.warning("Semantic search failed: %s", exc)
+            return []
 
 
 class IncidentRepository(BaseRepository[Incident]):

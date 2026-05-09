@@ -14,9 +14,19 @@ langchain>=0.1.9
 chromadb>=0.5.0
 sentence-transformers>=2.7.0
 
+# Embeddings & clustering
+torch>=2.0.0
+transformers>=4.30.0
+hdbscan>=0.8.32
+scikit-learn>=1.3.0
+numpy>=1.26.0
+scipy>=1.11.0
+pgvector>=0.2.0
+
 # Utilities
 pydantic>=2.0.0
 httpx>=0.26.0
+APScheduler>=3.10.4
 
 # State management
 filelock>=3.13.0

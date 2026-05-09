@@ -6,15 +6,23 @@ Provides connection pooling, session management, and initialization.
 import os
 import logging
 from typing import Optional
+from pathlib import Path
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 from functools import lru_cache
+from dotenv import load_dotenv
 
 from database.models import Base
 
 logger = logging.getLogger(__name__)
+
+
+# Load env from backend/.env and repo-root/.env if present.
+_here = Path(__file__).resolve()
+load_dotenv(_here.parents[1] / ".env")
+load_dotenv(_here.parents[2] / ".env")
 
 
 class DatabaseClient:

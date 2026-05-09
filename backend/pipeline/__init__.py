@@ -11,6 +11,7 @@ The pipeline processes errors through these stages:
 from .clustering import ErrorClusterer
 from .search import ContextSearcher
 from .analysis import ErrorAnalyzer
+from .cluster_processing import ClusterProcessingPipeline, get_cluster_processing_pipeline
 from .actions import get_action_executor
 # from .enrichment import ErrorEnricher, get_enricher
 # from .semantic_matcher import SemanticMatcher, get_semantic_matcher
@@ -19,6 +20,8 @@ __all__ = [
     "ErrorClusterer",
     "ContextSearcher",
     "ErrorAnalyzer",
+    "ClusterProcessingPipeline",
+    "get_cluster_processing_pipeline",
     "get_action_executor",
     # "ErrorEnricher",
     # "get_enricher",

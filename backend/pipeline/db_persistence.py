@@ -91,6 +91,40 @@ def persist_orchestrator_result(run_id: str, result: Dict[str, Any]) -> Dict[str
                                 "container": error.get("container", ""),
                             },
                         )
+                        # Build semantic text for embedding
+                        try:
+                            from embeddings import get_embedding_service
+
+                            sem_text_parts = [message_text or ""]
+                            if error.get("stack_trace"):
+                                sem_text_parts.append(error.get("stack_trace"))
+                            # include short metadata fields
+                            meta = raw_event.extra_metadata or {}
+                            meta_parts = []
+                            for k in ("signature", "function", "container"):
+                                v = meta.get(k) or error.get(k) or ""
+                                if v:
+                                    meta_parts.append(f"{k}: {v}")
+                            if meta_parts:
+                                sem_text_parts.append("; ".join(meta_parts))
+
+                            sem_text = "\n\n".join(sem_text_parts)
+
+                            emb_service = get_embedding_service()
+                            try:
+                                embedding = emb_service.generate_embedding(sem_text)
+                                if hasattr(embedding, "tolist"):
+                                    embedding = embedding.tolist()
+                                # Save embedding into raw_event record (array of floats)
+                                try:
+                                    raw_event_repo.update(raw_event.id, embedding=embedding)
+                                except Exception as e:
+                                    logger.warning(f"[persist] Failed to save embedding for raw_event {raw_event.id}: {e}")
+                            except Exception as e:
+                                logger.warning(f"[persist] Embedding generation failed for raw_event {raw_event.id}: {e}")
+                        except Exception:
+                            logger.debug("Embedding service not available; skipping embedding generation")
+
                         counts["raw_events"] += 1
                     except Exception as e:
                         logger.warning(f"[persist] Failed to save raw_event {i}: {e}")
