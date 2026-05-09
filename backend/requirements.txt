@@ -30,3 +30,12 @@ APScheduler>=3.10.4
 
 # State management
 filelock>=3.13.0
+
+# OpenTelemetry (receive/process OTLP HTTP telemetry and instrument FastAPI)
+opentelemetry-api>=1.16.0
+opentelemetry-sdk>=1.16.0
+opentelemetry-instrumentation-fastapi>=0.36b0
+opentelemetry-instrumentation-asgi>=0.36b0
+# OTLP HTTP exporter (used if app exports traces or interacts with OTLP endpoints)
+opentelemetry-exporter-otlp-proto-http>=1.16.0
+protobuf>=4.23.0
