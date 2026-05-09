@@ -35,6 +35,7 @@ from pipeline import ErrorClusterer, ContextSearcher, ErrorAnalyzer, get_action_
 from core.scoring import severity_priority
 from repository.repo_analyzer import analyze_repository
 from app.api.routes.health_routes import router as health_router
+from app.api.routes.otlp import router as otlp_router
 from repository.analysis_state import (
     create_run,
     fail_run,
@@ -205,6 +206,39 @@ def _generate_github_issue_preview(analysis: Dict[str, Any]) -> Dict[str, Any]:
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Error Monitoring Agent Demo...")
+    # Optional fail-fast startup checks for critical dependencies.
+    try:
+        if os.getenv("DEVANT_FAIL_FAST", "0") == "1":
+            # Ensure OTLP route DB helpers are available and can create a session.
+            import importlib
+
+            try:
+                otlp_mod = importlib.import_module("app.api.routes.otlp")
+            except Exception:
+                logger.exception("Failed to import OTLP route module during startup check")
+                raise
+
+            missing = []
+            if not getattr(otlp_mod, "get_database_client", None):
+                missing.append("get_database_client")
+            if not getattr(otlp_mod, "RawEventRepository", None):
+                missing.append("RawEventRepository")
+
+            if missing:
+                logger.error("Startup dependency check failed - missing: %s", missing)
+                raise RuntimeError(f"Missing startup dependencies: {missing}")
+
+            # Try creating a DB session to validate connectivity (may raise).
+            try:
+                client = otlp_mod.get_database_client()
+                sess = client.get_session()
+                sess.close()
+            except Exception:
+                logger.exception("Database connectivity check failed during startup")
+                raise
+    except Exception:
+        logger.error("Fail-fast startup check triggered; aborting startup.")
+        raise
     yield
     logger.info("Shutting down...")
 
@@ -217,6 +251,7 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+app.include_router(otlp_router)
 
 # CORS middleware for frontend
 app.add_middleware(
