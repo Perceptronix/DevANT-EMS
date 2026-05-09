@@ -244,3 +244,7 @@ If using Azure/Sentry, make sure all required credentials are provided.
 Check that:
 1. `LINEAR_ENABLED=true` or `SLACK_ENABLED=true` is set
 2. All required credentials are provided
+
+## OpenTelemetry Exporters
+
+If you want to send logs from JavaScript, Node.js, or Python applications into DevANT through OTLP HTTP, see [OTLP_HTTP_EXPORTERS.md](OTLP_HTTP_EXPORTERS.md).
