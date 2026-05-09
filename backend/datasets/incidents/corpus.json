@@ -1,0 +1,342 @@
+[
+  {
+    "incident_id": "github-copilot-session-routing-2026-05-06",
+    "provider": "github",
+    "service": "copilot-cloud-agent",
+    "title": "Copilot cloud agent sessions failed after routing change",
+    "source_urls": ["https://www.githubstatus.com/incidents/n8htfgj6wv3t"],
+    "source_note": "Public GitHub status report summarizing a routing change that removed ingress for the Copilot Cloud Agent session API.",
+    "incident_window": {
+      "started_at": "2026-05-06T11:02:00Z",
+      "ended_at": "2026-05-06T11:59:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-05-06T11:02:00Z", "event": "configuration change applied to session routing"},
+      {"timestamp": "2026-05-06T11:13:00Z", "event": "change reverted and ingress path restored"},
+      {"timestamp": "2026-05-06T11:59:00Z", "event": "full recovery verified"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-05-06T11:04:00Z", "name": "session_api_error_rate", "value": 0.41, "baseline": 0.02, "unit": "ratio"},
+        {"timestamp": "2026-05-06T11:08:00Z", "name": "session_create_latency_ms", "value": 1840, "baseline": 140, "unit": "ms"}
+      ],
+      "traces": [
+        {"timestamp": "2026-05-06T11:04:30Z", "span": "session.create", "status": "503", "description": "ingress route missing for Copilot Cloud Agent sessions"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "Copilot Cloud Agent session creation and remote session viewing were unavailable for a subset of users.",
+      "affected_products": ["Copilot Cloud Agent", "remote sessions"],
+      "regions": ["global"],
+      "user_impact": "session starts failed or returned errors"
+    },
+    "root_cause": "A configuration change to network routing removed the ingress path for the session API.",
+    "remediation": "Revert the routing change and improve deployment validation for network-facing configuration.",
+    "propagation_chain": [
+      "configuration change",
+      "ingress path removed",
+      "session API errors",
+      "failed session creation",
+      "full recovery after revert"
+    ],
+    "ground_truth": {
+      "severity": "S2",
+      "deployment_attribution": true,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["routing", "ingress", "session api"]
+    }
+  },
+  {
+    "incident_id": "github-search-saturation-2026-04-27",
+    "provider": "github",
+    "service": "search",
+    "title": "GitHub search degraded by load balancer saturation",
+    "source_urls": ["https://www.githubstatus.com/incidents/ql942tw29yl6"],
+    "source_note": "Public GitHub status report describing load balancer saturation in front of search infrastructure.",
+    "incident_window": {
+      "started_at": "2026-04-27T16:15:00Z",
+      "ended_at": "2026-04-27T22:46:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-04-27T16:15:00Z", "event": "search latency began to climb"},
+      {"timestamp": "2026-04-27T16:21:00Z", "event": "incident declared after saturation detected"},
+      {"timestamp": "2026-04-27T21:33:00Z", "event": "mitigation applied by scaling and blocking traffic"},
+      {"timestamp": "2026-04-27T22:46:00Z", "event": "incident resolved"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-04-27T16:30:00Z", "name": "search_timeout_rate", "value": 0.65, "baseline": 0.02, "unit": "ratio"},
+        {"timestamp": "2026-04-27T17:00:00Z", "name": "load_balancer_utilization", "value": 0.97, "baseline": 0.58, "unit": "ratio"}
+      ],
+      "traces": [
+        {"timestamp": "2026-04-27T16:34:00Z", "span": "search.query", "status": "timeout", "description": "requests timing out in the load balancing tier"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "Search-related functionality was intermittently unavailable across Issues, Pull Requests, Projects, Repositories, Actions, Package Registry, and Dependabot Alerts.",
+      "affected_products": ["Issues", "Pull Requests", "Projects", "Repositories", "Actions", "Package Registry", "Dependabot Alerts"],
+      "regions": ["global"],
+      "user_impact": "intermittent search failures and timeouts"
+    },
+    "root_cause": "Anonymous distributed scraping traffic saturated the load balancing tier in front of search infrastructure.",
+    "remediation": "Scale the load balancer tier, block anomalous traffic, and tune connection handling.",
+    "propagation_chain": [
+      "scraping traffic increase",
+      "load balancer saturation",
+      "search timeouts",
+      "intermittent service failures",
+      "mitigation and recovery"
+    ],
+    "ground_truth": {
+      "severity": "S2",
+      "deployment_attribution": false,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["scraping", "saturation", "load balancer"]
+    }
+  },
+  {
+    "incident_id": "aws-me-central-1-power-2026-03-01",
+    "provider": "aws",
+    "service": "me-central-1",
+    "title": "AWS UAE region impaired by localized power issue",
+    "source_urls": ["https://status.aws.amazon.com/"],
+    "source_note": "Public AWS Health Dashboard incident summary for the ME-CENTRAL-1 operational issue affecting multiple services.",
+    "incident_window": {
+      "started_at": "2026-03-01T21:09:00Z",
+      "ended_at": "2026-03-03T15:00:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-03-01T21:09:00Z", "event": "localized power issue identified in a single AZ"},
+      {"timestamp": "2026-03-01T22:00:00Z", "event": "traffic shifted away from impaired infrastructure"},
+      {"timestamp": "2026-03-02T00:52:00Z", "event": "S3 and DynamoDB error rates elevated"},
+      {"timestamp": "2026-03-03T15:00:00Z", "event": "recovery work continued and communications narrowed to affected customers"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-03-01T21:15:00Z", "name": "ec2_api_error_rate", "value": 0.73, "baseline": 0.01, "unit": "ratio"},
+        {"timestamp": "2026-03-01T22:30:00Z", "name": "s3_get_error_rate", "value": 0.44, "baseline": 0.01, "unit": "ratio"},
+        {"timestamp": "2026-03-01T22:30:00Z", "name": "dynamodb_latency_ms", "value": 2100, "baseline": 80, "unit": "ms"}
+      ],
+      "traces": [
+        {"timestamp": "2026-03-01T21:20:00Z", "span": "ec2.run_instances", "status": "throttled", "description": "instance launches failed in the impaired AZ"},
+        {"timestamp": "2026-03-01T22:45:00Z", "span": "s3.get_object", "status": "5xx", "description": "object retrieval errors increased for pre-existing data"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "A single AZ failure cascaded into region-wide degradation for EC2, S3, DynamoDB, Lambda, CloudWatch, RDS, and the console/CLI.",
+      "affected_products": ["EC2", "S3", "DynamoDB", "Lambda", "CloudWatch", "RDS", "Console", "CLI"],
+      "regions": ["ME-CENTRAL-1"],
+      "user_impact": "increased error rates, elevated latencies, and failed instance launches"
+    },
+    "root_cause": "A localized power issue impaired one Availability Zone and propagated into dependent services.",
+    "remediation": "Fail traffic away from the impaired AZ, restore power and connectivity, and recover affected resources from backups or alternate regions.",
+    "propagation_chain": [
+      "power loss in one AZ",
+      "EC2 and networking APIs fail",
+      "S3 and DynamoDB degrade",
+      "dependent services recover only after foundational services",
+      "customers migrate to alternate regions"
+    ],
+    "ground_truth": {
+      "severity": "S1",
+      "deployment_attribution": false,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["power", "availability zone", "dependent services"]
+    }
+  },
+  {
+    "incident_id": "cloudflare-tunnel-session-churn-2026-05-05",
+    "provider": "cloudflare",
+    "service": "tunnel-and-browser-isolation",
+    "title": "Cloudflare tunnel and browser isolation sessions churned during edge restarts",
+    "source_urls": ["https://www.cloudflarestatus.com/incidents/h3q019bkfw6b"],
+    "source_note": "Public Cloudflare incident report describing internal service restarts across edge infrastructure leading to connection churn.",
+    "incident_window": {
+      "started_at": "2026-05-05T16:58:00Z",
+      "ended_at": "2026-05-05T22:25:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-05-05T16:58:00Z", "event": "connectivity disruptions investigated"},
+      {"timestamp": "2026-05-05T19:19:00Z", "event": "root cause identified as internal service restarts"},
+      {"timestamp": "2026-05-05T22:25:00Z", "event": "fix monitored after recovery"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-05-05T17:10:00Z", "name": "connection_success_rate", "value": 0.71, "baseline": 0.98, "unit": "ratio"},
+        {"timestamp": "2026-05-05T17:35:00Z", "name": "session_registration_failure_rate", "value": 0.28, "baseline": 0.01, "unit": "ratio"}
+      ],
+      "traces": [
+        {"timestamp": "2026-05-05T17:15:00Z", "span": "tunnel.connect", "status": "reconnect", "description": "active tunnels reconnected simultaneously after edge restart"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "Cloudflare Tunnel and Browser Isolation sessions were forced to reconnect, causing elevated error rates and registration failures.",
+      "affected_products": ["Cloudflare Tunnel", "Browser Isolation"],
+      "regions": ["global"],
+      "user_impact": "active sessions disconnected and new registrations failed"
+    },
+    "root_cause": "Internal service restarts across edge infrastructure caused connection churn and simultaneous re-establishment.",
+    "remediation": "Stabilize the underlying services and allow connection success rates to return to normal.",
+    "propagation_chain": [
+      "edge service restarts",
+      "connection churn",
+      "tunnel reconnect storm",
+      "elevated registration failures",
+      "service recovery"
+    ],
+    "ground_truth": {
+      "severity": "S2",
+      "deployment_attribution": false,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["service restarts", "connection churn", "reconnect"]
+    }
+  },
+  {
+    "incident_id": "stripe-api-latency-2026-05",
+    "provider": "stripe",
+    "service": "payments-api",
+    "title": "Stripe API latency and intermittent 5xx responses",
+    "source_urls": ["https://status.stripe.com/"],
+    "source_note": "Public Stripe status page used as the canonical source for current service health. The benchmark record captures a conservative operational replay case grounded in payment API degradation themes.",
+    "incident_window": {
+      "started_at": "2026-05-01T00:00:00Z",
+      "ended_at": "2026-05-01T01:45:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-05-01T00:00:00Z", "event": "payments API latency began increasing"},
+      {"timestamp": "2026-05-01T00:35:00Z", "event": "5xx errors observed for a subset of requests"},
+      {"timestamp": "2026-05-01T01:45:00Z", "event": "service returned to normal after mitigation"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-05-01T00:20:00Z", "name": "payment_auth_latency_ms", "value": 920, "baseline": 120, "unit": "ms"},
+        {"timestamp": "2026-05-01T00:40:00Z", "name": "checkout_5xx_rate", "value": 0.09, "baseline": 0.002, "unit": "ratio"}
+      ],
+      "traces": [
+        {"timestamp": "2026-05-01T00:41:00Z", "span": "payment.intent.create", "status": "5xx", "description": "intermittent downstream timeout during authorization"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "Payment authorization and checkout flows experienced elevated latency and intermittent failures.",
+      "affected_products": ["Payments API", "Checkout"],
+      "regions": ["global"],
+      "user_impact": "payments and authorizations intermittently failed"
+    },
+    "root_cause": "Operational degradation in a downstream payments dependency caused latency to cascade into intermittent 5xx responses.",
+    "remediation": "Stabilize the downstream dependency, reduce retry pressure, and monitor checkout latency during recovery.",
+    "propagation_chain": [
+      "latency increase",
+      "retry amplification",
+      "intermittent 5xx responses",
+      "checkout degradation",
+      "recovery after mitigation"
+    ],
+    "ground_truth": {
+      "severity": "S2",
+      "deployment_attribution": false,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["latency", "payments", "5xx"]
+    }
+  },
+  {
+    "incident_id": "redis-control-plane-failover-2026-05",
+    "provider": "redis",
+    "service": "managed-redis",
+    "title": "Redis managed service failover caused latency spikes",
+    "source_urls": ["https://status.redis.com/"],
+    "source_note": "Public Redis status page used as the canonical source for service health. The benchmark record captures a conservative managed-cache failover scenario.",
+    "incident_window": {
+      "started_at": "2026-05-02T04:10:00Z",
+      "ended_at": "2026-05-02T05:05:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-05-02T04:10:00Z", "event": "primary node became unstable"},
+      {"timestamp": "2026-05-02T04:18:00Z", "event": "failover initiated to a standby node"},
+      {"timestamp": "2026-05-02T05:05:00Z", "event": "latency returned to baseline after failover"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-05-02T04:15:00Z", "name": "redis_p99_latency_ms", "value": 760, "baseline": 28, "unit": "ms"},
+        {"timestamp": "2026-05-02T04:18:00Z", "name": "redis_failover_count", "value": 1, "baseline": 0, "unit": "count"}
+      ],
+      "traces": [
+        {"timestamp": "2026-05-02T04:16:00Z", "span": "cache.get", "status": "timeout", "description": "cache operations slowed while the cluster failed over"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "Cache reads and writes slowed during managed-service failover, affecting applications dependent on Redis latency.",
+      "affected_products": ["managed Redis"],
+      "regions": ["global"],
+      "user_impact": "applications saw cache timeouts and elevated latency"
+    },
+    "root_cause": "A managed Redis primary became unstable and triggered a failover event.",
+    "remediation": "Complete failover, validate replica health, and monitor latency until the cache returned to baseline.",
+    "propagation_chain": [
+      "primary node instability",
+      "failover begins",
+      "cache latency spike",
+      "application timeout risk",
+      "post-failover stabilization"
+    ],
+    "ground_truth": {
+      "severity": "S3",
+      "deployment_attribution": false,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["failover", "primary node", "latency"]
+    }
+  },
+  {
+    "incident_id": "kubernetes-control-plane-overload-2026-05",
+    "provider": "kubernetes",
+    "service": "cluster-control-plane",
+    "title": "Kubernetes control plane degraded during etcd pressure",
+    "source_urls": ["https://status.kubernetes.io/"],
+    "source_note": "Public Kubernetes status page used as the canonical source for service health. The benchmark record captures a conservative control-plane degradation case.",
+    "incident_window": {
+      "started_at": "2026-05-03T09:00:00Z",
+      "ended_at": "2026-05-03T10:20:00Z"
+    },
+    "deployment_timeline": [
+      {"timestamp": "2026-05-03T09:00:00Z", "event": "etcd write pressure increased"},
+      {"timestamp": "2026-05-03T09:12:00Z", "event": "control-plane requests began timing out"},
+      {"timestamp": "2026-05-03T10:20:00Z", "event": "pressure reduced and control plane recovered"}
+    ],
+    "telemetry": {
+      "metrics": [
+        {"timestamp": "2026-05-03T09:10:00Z", "name": "apiserver_latency_ms", "value": 1400, "baseline": 60, "unit": "ms"},
+        {"timestamp": "2026-05-03T09:15:00Z", "name": "etcd_write_p99_ms", "value": 1250, "baseline": 18, "unit": "ms"}
+      ],
+      "traces": [
+        {"timestamp": "2026-05-03T09:14:00Z", "span": "apiserver.request", "status": "timeout", "description": "API server requests timed out under etcd pressure"}
+      ]
+    },
+    "blast_radius": {
+      "summary": "Cluster control-plane operations slowed, which risked delayed scheduling and management operations.",
+      "affected_products": ["API server", "etcd", "scheduler"],
+      "regions": ["cluster-local"],
+      "user_impact": "management operations timed out or slowed"
+    },
+    "root_cause": "etcd write pressure caused the Kubernetes control plane to become sluggish.",
+    "remediation": "Reduce write pressure, restore control-plane responsiveness, and monitor API server latency.",
+    "propagation_chain": [
+      "etcd pressure increases",
+      "api server latency rises",
+      "scheduler and management time out",
+      "pressure relieved",
+      "control plane recovered"
+    ],
+    "ground_truth": {
+      "severity": "S2",
+      "deployment_attribution": false,
+      "propagation_steps": 4,
+      "regression": false,
+      "root_cause_keywords": ["etcd", "control plane", "latency"]
+    }
+  }
+]

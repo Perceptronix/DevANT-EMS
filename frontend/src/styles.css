@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Airweave Dark Theme (from frontend-v2) */
+:root {
+  --radius: 0.5rem;
+  
+  /* Matte Dark Theme */
+  --background: oklch(0.16 0 0);
+  --foreground: oklch(0.92 0 0);
+  --card: oklch(0.19 0 0);
+  --card-foreground: oklch(0.92 0 0);
+  --popover: oklch(0.19 0 0);
+  --popover-foreground: oklch(0.92 0 0);
+  --primary: oklch(0.85 0 0);
+  --primary-foreground: oklch(0.16 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.92 0 0);
+  --muted: oklch(0.23 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.25 0 0);
+  --accent-foreground: oklch(0.92 0 0);
+  --destructive: oklch(0.6 0.15 20);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(1 0 0 / 15%);
+  
+  /* Status Colors (Matte) */
+  --status-green: oklch(0.7 0.12 150);
+  --status-yellow: oklch(0.8 0.15 85);
+  --status-red: oklch(0.65 0.15 25);
+  --status-blue: oklch(0.7 0.1 240);
+  --status-gray: oklch(0.5 0 0);
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+code, pre {
+  font-family: 'Fira Code', source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+/* Custom utilities */
+@layer utilities {
+  .text-mono-uppercase {
+    @apply font-mono text-sm font-medium uppercase tracking-wide;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Animation for step indicator */
+@keyframes step-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-step-pulse {
+  animation: step-pulse 1.5s ease-in-out infinite;
+}
+
+/* Code block styling */
+.code-block {
+  background: oklch(0.1 0.005 180);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Severity badge colors */
+.severity-s1 {
+  background-color: var(--severity-s1);
+  color: white;
+}
+
+.severity-s2 {
+  background-color: var(--severity-s2);
+  color: white;
+}
+
+.severity-s3 {
+  background-color: var(--severity-s3);
+  color: black;
+}
+
+.severity-s4 {
+  background-color: var(--severity-s4);
+  color: white;
+}
+
+/* Staggered fade-in animation for progressive loading effect */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeSlideIn 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+/* Staggered delay classes for list items */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+.stagger-6 { animation-delay: 0.6s; }
+.stagger-7 { animation-delay: 0.7s; }
+.stagger-8 { animation-delay: 0.8s; }
+.stagger-9 { animation-delay: 0.9s; }
+.stagger-10 { animation-delay: 1.0s; }
+
+/* Typing/processing indicator animation */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Progress bar animation */
+@keyframes progressFill {
+  from { width: 0%; }
+  to { width: var(--progress-width, 100%); }
+}
+
+.animate-progress {
+  animation: progressFill 0.8s ease-out forwards;
+}

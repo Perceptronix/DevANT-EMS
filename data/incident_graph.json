@@ -1,0 +1,244 @@
+{
+  "nodes": {
+    "inc-001": {
+      "incident_id": "inc-001",
+      "timestamp": "2026-04-28T10:54:07.392536",
+      "repo": "myapp",
+      "dominant_service": "api",
+      "blast_radius": 5,
+      "operational_confidence": 0.65,
+      "regression_risk": 0.45,
+      "topology_hash": "topo-hash-1",
+      "critical_paths": [
+        [
+          "api",
+          "db"
+        ],
+        [
+          "api",
+          "cache"
+        ]
+      ],
+      "upstream_risk": 0.2,
+      "downstream_risk": 0.6
+    },
+    "inc-002": {
+      "incident_id": "inc-002",
+      "timestamp": "2026-04-30T10:54:07.392536",
+      "repo": "myapp",
+      "dominant_service": "api",
+      "blast_radius": 4,
+      "operational_confidence": 0.6,
+      "regression_risk": 0.55,
+      "topology_hash": "topo-hash-1",
+      "critical_paths": [
+        [
+          "api",
+          "db"
+        ]
+      ],
+      "upstream_risk": 0.2,
+      "downstream_risk": 0.55
+    },
+    "inc-003": {
+      "incident_id": "inc-003",
+      "timestamp": "2026-05-03T10:54:07.392536",
+      "repo": "myapp",
+      "dominant_service": "api",
+      "blast_radius": 7,
+      "operational_confidence": 0.55,
+      "regression_risk": 0.65,
+      "topology_hash": "topo-hash-1",
+      "critical_paths": [
+        [
+          "api",
+          "db"
+        ],
+        [
+          "api",
+          "queue"
+        ]
+      ],
+      "upstream_risk": 0.3,
+      "downstream_risk": 0.7
+    },
+    "inc-004": {
+      "incident_id": "inc-004",
+      "timestamp": "2026-05-05T10:54:07.392536",
+      "repo": "myapp",
+      "dominant_service": "web",
+      "blast_radius": 2,
+      "operational_confidence": 0.7,
+      "regression_risk": 0.3,
+      "topology_hash": "topo-hash-2",
+      "critical_paths": [
+        [
+          "web",
+          "api"
+        ]
+      ],
+      "upstream_risk": 0.1,
+      "downstream_risk": 0.2
+    },
+    "inc-005": {
+      "incident_id": "inc-005",
+      "timestamp": "2026-05-08T10:54:07.392536",
+      "repo": "myapp",
+      "dominant_service": "api",
+      "blast_radius": 6,
+      "operational_confidence": 0.58,
+      "regression_risk": 0.72,
+      "topology_hash": "topo-hash-1",
+      "critical_paths": [
+        [
+          "api",
+          "db"
+        ]
+      ],
+      "upstream_risk": 0.25,
+      "downstream_risk": 0.65
+    },
+    "api rollout failed": {
+      "incident_id": "api rollout failed",
+      "timestamp": "2026-05-09T07:13:49.958596+00:00",
+      "repo": "unknown",
+      "dominant_service": "api",
+      "blast_radius": 2,
+      "operational_confidence": 0.5,
+      "regression_risk": 0.0,
+      "topology_hash": "api|api",
+      "critical_paths": [
+        [
+          "api"
+        ]
+      ],
+      "upstream_risk": 0.1,
+      "downstream_risk": 0.2
+    },
+    "cluster_806fb7c04c2e": {
+      "incident_id": "cluster_806fb7c04c2e",
+      "timestamp": "2026-05-09T07:03:49.954101+00:00",
+      "repo": "unknown",
+      "dominant_service": "api",
+      "blast_radius": 2,
+      "operational_confidence": 0.7765,
+      "regression_risk": 0.1,
+      "topology_hash": "api|api",
+      "critical_paths": [
+        [
+          "api"
+        ]
+      ],
+      "upstream_risk": 0.1,
+      "downstream_risk": 0.2
+    },
+    "cluster_331ad4eda2d0": {
+      "incident_id": "cluster_331ad4eda2d0",
+      "timestamp": "2026-05-09T07:11:49.954101+00:00",
+      "repo": "unknown",
+      "dominant_service": "web",
+      "blast_radius": 2,
+      "operational_confidence": 0.7765,
+      "regression_risk": 0.4,
+      "topology_hash": "web|web",
+      "critical_paths": [
+        [
+          "web"
+        ]
+      ],
+      "upstream_risk": 0.1,
+      "downstream_risk": 0.2
+    },
+    "cluster_f1813d906f48": {
+      "incident_id": "cluster_f1813d906f48",
+      "timestamp": "2026-05-09T07:12:49.954101+00:00",
+      "repo": "unknown",
+      "dominant_service": "ci",
+      "blast_radius": 2,
+      "operational_confidence": 0.7765,
+      "regression_risk": 0.4,
+      "topology_hash": "ci|ci",
+      "critical_paths": [
+        [
+          "ci"
+        ]
+      ],
+      "upstream_risk": 0.1,
+      "downstream_risk": 0.2
+    }
+  },
+  "edges": [
+    {
+      "source_incident": "inc-001",
+      "target_incident": "inc-002",
+      "relationship": "recurring",
+      "confidence": 0.8
+    },
+    {
+      "source_incident": "inc-001",
+      "target_incident": "inc-002",
+      "relationship": "similar",
+      "confidence": 0.9
+    },
+    {
+      "source_incident": "inc-002",
+      "target_incident": "inc-003",
+      "relationship": "recurring",
+      "confidence": 0.8
+    },
+    {
+      "source_incident": "inc-002",
+      "target_incident": "inc-003",
+      "relationship": "escalation",
+      "confidence": 0.7
+    },
+    {
+      "source_incident": "inc-002",
+      "target_incident": "inc-003",
+      "relationship": "similar",
+      "confidence": 0.9
+    },
+    {
+      "source_incident": "inc-004",
+      "target_incident": "inc-005",
+      "relationship": "escalation",
+      "confidence": 0.6
+    },
+    {
+      "source_incident": "inc-005",
+      "target_incident": "api rollout failed",
+      "relationship": "recurring",
+      "confidence": 0.8
+    },
+    {
+      "source_incident": "inc-005",
+      "target_incident": "api rollout failed",
+      "relationship": "recurring",
+      "confidence": 0.8
+    },
+    {
+      "source_incident": "api rollout failed",
+      "target_incident": "cluster_806fb7c04c2e",
+      "relationship": "recurring",
+      "confidence": 0.8
+    },
+    {
+      "source_incident": "api rollout failed",
+      "target_incident": "cluster_806fb7c04c2e",
+      "relationship": "similar",
+      "confidence": 0.9
+    },
+    {
+      "source_incident": "api rollout failed",
+      "target_incident": "cluster_806fb7c04c2e",
+      "relationship": "recurring",
+      "confidence": 0.8
+    },
+    {
+      "source_incident": "api rollout failed",
+      "target_incident": "cluster_806fb7c04c2e",
+      "relationship": "similar",
+      "confidence": 0.9
+    }
+  ]
+}

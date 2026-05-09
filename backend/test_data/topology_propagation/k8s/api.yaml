@@ -1,0 +1,15 @@
+
+apiVersion: v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+      - name: api
+        env:
+        - name: DB_HOST
+          value: db
+        - name: CACHE_HOST
+          value: cache

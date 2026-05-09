@@ -1,0 +1,118 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Chroma runtime storage
+backend/data/chroma/
+*.sqlite3
+*.bin
+
+
+.venv/
+venv/
+env/
+tests/
+
+# Python
+.python-version
+pip-wheel-metadata/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+*.crt
+
+# =========================
+# AI / Vector DB / Embeddings
+# =========================
+backend/data/chroma/
+backend/models/
+backend/cache/
+*.faiss
+*.index
+
+# Sentence transformer cache
+.cache/
+huggingface/
+hf_cache/
+
+# =========================
+# Build Outputs
+# =========================
+dist/
+build/
+coverage/
+*.egg-info/
+*.egg
+
+# Frontend
+frontend/dist/
+frontend/.vite/
+
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# =========================
+# Testing / Benchmarks
+# =========================
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+backend/tests/benchmark_report.json
+
+# =========================
+# Runtime State
+# =========================
+backend/data/*.json
+backend/data/*.lock
+
+!backend/data/.gitkeep
+
+# Keep sample datasets if needed
+!backend/data/samples/
+
+# =========================
+# Jupyter / Research
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Temporary Files
+# =========================
+*.tmp
+*.temp
+tmp/
+temp/

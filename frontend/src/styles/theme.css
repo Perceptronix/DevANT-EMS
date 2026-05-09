@@ -1,0 +1,192 @@
+/* DevANT Professional Minimal Theme
+   - Primary accent: #00DC82
+   - Secondary accent: #00B368
+   - Background: #0A0A0A
+   - Surfaces: #111111 / #161616
+   - Primary text: #F5F7F6
+   - Secondary text: #B7C0BC
+   - Muted text: #7D8783
+   - Border: rgba(255,255,255,0.06)
+
+   Semantic tokens, base utilities, and minimal component tokens for a calm,
+   enterprise-grade UI. Import this as the first stylesheet in the app.
+*/
+
+:root {
+  /* Colors */
+  --color-bg: #0A0A0A;
+  --color-surface: #111111;
+  --color-surface-elevated: #161616;
+
+  --accent-primary: #00DC82;
+  --accent-primary-2: #00B368;
+
+  --text-primary: #F5F7F6;
+  --text-secondary: #B7C0BC;
+  --text-muted: #7D8783;
+
+  --border: rgba(255,255,255,0.06);
+
+  /* Status */
+  --status-healthy: #00DC82;
+  --status-pending: #4A4A4A;
+  --status-warning: #FFB020;
+  --status-critical: #FF5C5C;
+  --status-info: #5AA9FF;
+
+  /* Elevation */
+  --shadow-soft: 0 1px 4px rgba(0,0,0,0.35);
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Border radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  --fw-body: 400;
+  --fw-label: 500;
+  --fw-heading: 600;
+  --tracking-tight: 0.2px;
+
+  /* Button gradient (primary) */
+  --btn-primary-grad: linear-gradient(135deg,var(--accent-primary),var(--accent-primary-2));
+
+  /* Breakpoints */
+  --bp-sm: 640px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+}
+
+/* Global resets */
+html,body,#root {
+  height:100%;
+  background:var(--color-bg);
+  color:var(--text-primary);
+  font-family:var(--font-sans);
+  font-weight:var(--fw-body);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* Generic card */
+.card {
+  background: linear-gradient(180deg, var(--color-surface), var(--color-surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-soft);
+  color:var(--text-primary);
+}
+
+/* Compact card variant */
+.card-compact {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+/* Headings */
+h1, h2, h3 {
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--fw-heading);
+  color: var(--text-primary);
+}
+
+/* Labels */
+.label {
+  font-weight: var(--fw-label);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Buttons */
+.button-primary {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background: var(--btn-primary-grad);
+  color: var(--text-primary);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.button-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* Badge */
+.badge {
+  display:inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+}
+
+/* Status variants */
+.badge--healthy { background: linear-gradient(180deg, rgba(0,220,130,0.08), rgba(0,179,104,0.06)); color: var(--status-healthy); }
+.badge--pending { background: transparent; color: var(--text-muted); }
+.badge--warning { color: var(--status-warning); }
+.badge--critical { color: var(--status-critical); }
+.badge--info { color: var(--status-info); }
+
+/* Pipeline line item */
+.pipeline-stage {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.pipeline-stage__left { display:flex; align-items:center; gap:12px; }
+.pipeline-stage__title { font-weight: 500; color:var(--text-primary); }
+.pipeline-stage__note { color:var(--text-muted); font-size:0.85rem }
+
+/* Minimal list styles */
+.list-compact { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+
+/* Utility: subtle divider */
+.hr-subtle { height:1px; background:var(--border); margin:12px 0; border-radius:1px }
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .card { padding: var(--space-3); border-radius: var(--radius-md); }
+  .button-primary, .button-outline { padding: 8px 10px; }
+}
+
+/* Accessibility focus */
+.button-primary:focus, .button-outline:focus { outline: 2px solid rgba(0,220,130,0.14); outline-offset: 2px }
+
+/* Small helper to render thin separators for calm hierarchy */
+.separator { border-top: 1px solid rgba(255,255,255,0.02); margin: 12px 0 }
+
+/* Accent utilities to replace legacy orange/amber tokens */
+.text-accent { color: var(--accent-primary) !important; }
+.text-accent-soft { color: var(--accent-primary-2) !important; }
+.bg-accent { background: var(--accent-primary) !important; }
+.bg-accent-soft { background: rgba(0,220,130,0.06) !important; }
+.border-accent { border-color: var(--accent-primary) !important; }
+.border-accent-soft { border-color: rgba(0,220,130,0.12) !important; }
+.bg-accent-gradient { background: linear-gradient(90deg, rgba(0,220,130,0.06), rgba(0,179,104,0.04)) !important; }
+.icon-accent { color: var(--accent-primary) !important; }
+
+/* small helpers mapping for compact chips */
+.chip-accent { background: rgba(0,220,130,0.04); color: var(--text-primary); border: 1px solid rgba(0,220,130,0.06); padding: 2px 8px; border-radius: 999px; font-size: 0.75rem }

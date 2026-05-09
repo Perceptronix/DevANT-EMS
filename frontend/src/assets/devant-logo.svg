@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal DevANT logo — geometric, scalable, monochrome-compatible -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="DevANT logo">
+  <defs>
+    <style> .st0{fill:none;} .st1{fill:currentColor;} </style>
+  </defs>
+  <!-- Abstract topology motif: central node + three orbiting nodes connected -->
+  <circle class="st1" cx="60" cy="60" r="10" />
+  <circle class="st1" cx="60" cy="22" r="5" opacity="0.95" />
+  <circle class="st1" cx="98" cy="60" r="5" opacity="0.95" />
+  <circle class="st1" cx="22" cy="60" r="5" opacity="0.95" />
+  <!-- Connectors (thin, matte) -->
+  <path class="st1" d="M60 32 L60 52" opacity="0.6" stroke="currentColor" stroke-width="2" fill="none" />
+  <path class="st1" d="M82 60 L92 60" opacity="0.6" stroke="currentColor" stroke-width="2" fill="none" />
+  <path class="st1" d="M28 60 L38 60" opacity="0.6" stroke="currentColor" stroke-width="2" fill="none" />
+</svg>
