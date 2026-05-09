@@ -27,6 +27,8 @@ pgvector>=0.2.0
 pydantic>=2.0.0
 httpx>=0.26.0
 APScheduler>=3.10.4
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
 
 # State management
 filelock>=3.13.0

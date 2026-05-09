@@ -11,9 +11,16 @@ class TestPhase3Phase4Integration:
     """Validate unified OTLP → clustering → incidents pipeline."""
 
     @pytest.fixture
-    def project_id(self):
-        """Test project ID."""
-        return str(uuid4())
+    def project_id(self, db_session):
+        """Persist and return a valid project ID for FK-safe test inserts."""
+        from database.repositories.entities import ProjectRepository
+
+        repo = ProjectRepository(db_session)
+        project = repo.create(
+            name=f"phase3-phase4-test-{uuid4().hex[:8]}",
+            github_repo=f"test-org/test-repo-{uuid4().hex[:8]}",
+        )
+        return project.id
 
     @pytest.fixture
     def orchestrator(self):

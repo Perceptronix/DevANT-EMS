@@ -4,6 +4,7 @@ Event groups map to `error_clusters` table.
 """
 
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -108,6 +109,17 @@ class ClusterProcessingPipeline:
                 groups[int(label)].append(embed_events[idx])
 
             summary["noise_ignored"] = len(groups.get(-1, []))
+
+            # Fallback for low-volume batches where HDBSCAN marks all events as noise.
+            # This preserves meaningful grouping for clearly similar incidents.
+            non_noise_labels = [label for label in groups.keys() if label != -1]
+            if not non_noise_labels and len(groups.get(-1, [])) >= 2:
+                fallback_groups = self._group_noise_events_by_text_similarity(groups[-1])
+                if fallback_groups:
+                    groups.pop(-1, None)
+                    for idx, group in enumerate(fallback_groups):
+                        groups[-1000 - idx] = group
+                    summary["noise_ignored"] = 0
 
             for label, group_events in groups.items():
                 if label == -1:
@@ -409,6 +421,53 @@ class ClusterProcessingPipeline:
         existing.update(stats)
         existing["merged_batches"] = merged_batches
         record.extra_metadata = existing
+
+    @staticmethod
+    def _normalize_message_text(message: Optional[str]) -> str:
+        text = (message or "").lower()
+        # Replace quoted fragments and numbers with placeholders to compare templates.
+        text = re.sub(r"'[^']+'|\"[^\"]+\"", "<q>", text)
+        text = re.sub(r"\b\d+\b", "<n>", text)
+        text = re.sub(r"[^a-z0-9<> ]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
+
+    @classmethod
+    def _text_similarity(cls, left: Optional[str], right: Optional[str]) -> float:
+        a = set(cls._normalize_message_text(left).split())
+        b = set(cls._normalize_message_text(right).split())
+        if not a or not b:
+            return 0.0
+        union = a | b
+        if not union:
+            return 0.0
+        return len(a & b) / len(union)
+
+    @classmethod
+    def _group_noise_events_by_text_similarity(
+        cls,
+        noise_events: Sequence[RawEvent],
+        similarity_threshold: float = 0.55,
+    ) -> List[List[RawEvent]]:
+        grouped: List[List[RawEvent]] = []
+
+        for event in noise_events:
+            placed = False
+            for group in grouped:
+                rep = group[0]
+                same_service = (event.service or "") == (rep.service or "")
+                if not same_service:
+                    continue
+                similarity = cls._text_similarity(event.message, rep.message)
+                if similarity >= similarity_threshold:
+                    group.append(event)
+                    placed = True
+                    break
+            if not placed:
+                grouped.append([event])
+
+        # Only keep meaningful groups of at least 2 events; singles remain noise.
+        return [group for group in grouped if len(group) >= 2]
 
 
 def get_cluster_processing_pipeline(

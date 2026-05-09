@@ -56,6 +56,13 @@ interface RunSnapshot {
   error?: string | null
 }
 
+interface OtlpIngestResponse {
+  success: boolean
+  records_received: number
+  records_saved: number
+  pipeline_triggered: boolean
+}
+
 
 
 function stateStatusColor(state: JobState | undefined): StatusColor {
@@ -74,6 +81,10 @@ export default function App() {
   const [isStarting, setIsStarting] = useState(false)
   const [streamConnected, setStreamConnected] = useState(false)
   const [backendConnection, setBackendConnection] = useState<'unknown' | 'checking' | 'connected' | 'disconnected'>('unknown')
+  const [otlpPayload, setOtlpPayload] = useState('')
+  const [isIngestingOtlp, setIsIngestingOtlp] = useState(false)
+  const [otlpResult, setOtlpResult] = useState<OtlpIngestResponse | null>(null)
+  const [otlpError, setOtlpError] = useState<string | null>(null)
 
   const latestTransitionCountRef = useRef<number>(0)
 
@@ -189,6 +200,35 @@ export default function App() {
     await fetch(`/api/analyze-repository/${activeRunId}/cancel`, { method: 'POST' })
   }, [activeRunId])
 
+  const ingestOtlpPayload = useCallback(async () => {
+    const payload = otlpPayload.trim()
+    if (!payload) return
+
+    setIsIngestingOtlp(true)
+    setOtlpError(null)
+    setOtlpResult(null)
+
+    try {
+      const response = await fetch('/api/v1/ingest/otlp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      })
+
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        const detail = (data && typeof data === 'object' && 'detail' in data) ? String((data as { detail?: unknown }).detail) : 'OTLP ingest failed'
+        throw new Error(detail)
+      }
+
+      setOtlpResult(data as OtlpIngestResponse)
+    } catch (error) {
+      setOtlpError(error instanceof Error ? error.message : 'Failed to ingest OTLP payload')
+    } finally {
+      setIsIngestingOtlp(false)
+    }
+  }, [otlpPayload])
+
   const { scores, evidence, topology } = useMemo(() => {
     if (activeSnapshot?.result_snapshot) {
       return {
@@ -292,6 +332,31 @@ export default function App() {
           <Button variant="outline" onClick={cancelAnalysis} disabled={!activeRunId || isTerminalState(activeSnapshot?.state)} className="border-border hover:bg-muted">
             <Square className="h-4 w-4 mr-2" />Cancel
           </Button>
+        </section>
+
+        {/* OTLP Ingestion */}
+        <section className="bg-card border border-border rounded-xl p-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight">OTLP Ingestion Test</h2>
+            <p className="text-xs text-muted-foreground mt-1">Paste OTLP JSON and send directly to backend ingest pipeline.</p>
+          </div>
+          <textarea
+            value={otlpPayload}
+            onChange={(e) => setOtlpPayload(e.target.value)}
+            placeholder='{"resourceLogs": [...]}'
+            className="w-full min-h-32 rounded-md bg-background border border-border px-3 py-2 text-xs font-mono outline-none focus:border-primary transition-colors"
+          />
+          <div className="flex items-center gap-3">
+            <Button onClick={ingestOtlpPayload} disabled={isIngestingOtlp || !otlpPayload.trim()} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              {isIngestingOtlp ? 'Ingesting...' : 'Send OTLP Payload'}
+            </Button>
+            {otlpResult && (
+              <span className="text-xs text-muted-foreground">
+                received {otlpResult.records_received}, saved {otlpResult.records_saved}, pipeline {otlpResult.pipeline_triggered ? 'triggered' : 'not triggered'}
+              </span>
+            )}
+            {otlpError && <span className="text-xs text-red-400">{otlpError}</span>}
+          </div>
         </section>
 
         {/* Status bar */}

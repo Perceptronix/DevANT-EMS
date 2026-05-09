@@ -693,6 +693,15 @@ async def ingest_otlp(request: Request, background_tasks: BackgroundTasks):
             payload_format=payload_format,
         )
 
+    if parsed_records and (get_database_client is None or RawEventRepository is None or ProjectRepository is None):
+        _log_otlp_event(
+            "otlp.ingest.dependencies_unavailable",
+            get_database_client_available=get_database_client is not None,
+            raw_event_repository_available=RawEventRepository is not None,
+            project_repository_available=ProjectRepository is not None,
+        )
+        raise HTTPException(status_code=503, detail="OTLP persistence dependencies unavailable")
+
     resolved_project_id = resolve_otlp_project_id(None)
     normalized_records: list[dict[str, Any]] = []
     persisted_count = 0
@@ -705,6 +714,8 @@ async def ingest_otlp(request: Request, background_tasks: BackgroundTasks):
             reason="no_project_id_resolved",
             records_received=len(parsed_records),
         )
+        if parsed_records:
+            raise HTTPException(status_code=503, detail="No OTLP project context available")
     elif not parsed_records:
         _log_otlp_event(
             "otlp.ingest.skipped_persistence",
