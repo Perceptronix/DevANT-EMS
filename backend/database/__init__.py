@@ -1,6 +1,6 @@
 """Database module."""
-from database.client import DatabaseClient, get_database_client, get_db_session
-from database.models import (
+from .client import DatabaseClient, get_database_client, get_db_session
+from .models import (
     Base,
     Project,
     RawEvent,
@@ -13,6 +13,13 @@ from database.models import (
     Ticket,
     Mute,
     SignalFusionMetadata,
+    GitHubRepository,
+    GitHubCommit,
+    GitHubPullRequest,
+    GitHubDeployment,
+    GitHubWorkflow,
+    IncidentCommitCorrelation,
+    IncidentDeploymentCorrelation,
 )
 
 __all__ = [
@@ -31,4 +38,11 @@ __all__ = [
     "Ticket",
     "Mute",
     "SignalFusionMetadata",
+    "GitHubRepository",
+    "GitHubCommit",
+    "GitHubPullRequest",
+    "GitHubDeployment",
+    "GitHubWorkflow",
+    "IncidentCommitCorrelation",
+    "IncidentDeploymentCorrelation",
 ]

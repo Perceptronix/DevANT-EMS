@@ -6,7 +6,7 @@ Event groups map to `error_clusters` table.
 import logging
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -75,6 +75,8 @@ class ClusterProcessingPipeline:
         session = client.get_session()
 
         try:
+            logger.info("CLUSTER PIPELINE: Starting process_recent_unclustered_events project_id=%s lookback=%d", project_id, lookback)
+            
             events = self._fetch_recent_unclustered_events(
                 session=session,
                 project_id=project_id,
@@ -82,18 +84,24 @@ class ClusterProcessingPipeline:
                 lookback_minutes=lookback,
             )
             summary["fetched_events"] = len(events)
+            
+            logger.info("CLUSTER PIPELINE: Fetched %d unclustered events", len(events))
 
             if not events:
-                logger.info("Cluster pipeline: no unclustered events found")
+                logger.warning("Cluster pipeline: no unclustered events found")
                 return summary
 
             embed_events, embed_matrix = self._load_embeddings(events)
             summary["embedded_events"] = len(embed_events)
+            
+            logger.info("CLUSTER PIPELINE: Loaded embeddings for %d/%d events", len(embed_events), len(events))
 
             if len(embed_events) < 2:
-                logger.info("Cluster pipeline: not enough embedded events to cluster")
+                logger.info("Cluster pipeline: not enough embedded events to cluster (%d < 2)", len(embed_events))
                 return summary
 
+            logger.info("CLUSTER PIPELINE: Running HDBSCAN clustering on %d events", len(embed_events))
+            
             cluster_result = self.cluster_service.cluster_embeddings(
                 embeddings=embed_matrix,
                 min_cluster_size=min_cluster_size,
@@ -186,19 +194,147 @@ class ClusterProcessingPipeline:
         limit: int,
         lookback_minutes: int,
     ) -> List[RawEvent]:
-        since = datetime.utcnow() - timedelta(minutes=lookback_minutes)
+        # Use timezone-aware UTC datetime for comparison with TIMESTAMP(timezone=True) columns
+        since = datetime.now(timezone.utc) - timedelta(minutes=lookback_minutes)
 
+        # DEBUG: Log all diagnostic metrics before filtering
+        total_events = session.query(RawEvent).count()
+        null_cluster_events = session.query(RawEvent).filter(RawEvent.cluster_id.is_(None)).count()
+        with_embedding_events = session.query(RawEvent).filter(RawEvent.embedding.isnot(None)).count()
+        
+        # Check both occurred_at and created_at for recent events (fallback)
+        from sqlalchemy import func
+        recent_occurred = session.query(RawEvent).filter(RawEvent.occurred_at >= since).count()
+        recent_created = session.query(RawEvent).filter(RawEvent.created_at >= since).count()
+        
+        logger.info(
+            "CLUSTER QUERY DEBUG: total_events=%d null_cluster=%d with_embedding=%d recent_occurred(lookback=%dm)=%d recent_created=%d since=%s",
+            total_events,
+            null_cluster_events,
+            with_embedding_events,
+            lookback_minutes,
+            recent_occurred,
+            recent_created,
+            since.isoformat(),
+        )
+        
+        if project_id is not None:
+            project_events = session.query(RawEvent).filter(RawEvent.project_id == project_id).count()
+            logger.info(
+                "CLUSTER QUERY DEBUG: project_id=%s has %d events (type=%s)",
+                project_id,
+                project_events,
+                type(project_id).__name__,
+            )
+
+        # Primary: use occurred_at if available and recent
+        # Fallback: use created_at (in case occurred_at is stale)
+        from sqlalchemy import case
+        recency_check = case(
+            (RawEvent.occurred_at.isnot(None), RawEvent.occurred_at),
+            else_=RawEvent.created_at
+        )
+        
         query = (
             session.query(RawEvent)
             .filter(RawEvent.cluster_id.is_(None))
             .filter(RawEvent.embedding.isnot(None))
-            .filter(RawEvent.occurred_at >= since)
-            .order_by(RawEvent.occurred_at.desc())
+            .filter(recency_check >= since)
+            .order_by(recency_check.desc())
         )
         if project_id is not None:
             query = query.filter(RawEvent.project_id == project_id)
 
-        return query.limit(limit).all()
+        results = query.limit(limit).all()
+        
+        logger.info(
+            "CLUSTER QUERY RESULT: fetched %d unclustered events from project_id=%s lookback=%d",
+            len(results),
+            project_id,
+            lookback_minutes,
+        )
+        
+        if results:
+            # Log sample event IDs and metadata
+            logger.info("CLUSTER QUERY: Fetched events summary:")
+            for i, event in enumerate(results[:5]):  # First 5 events
+                effective_time = event.occurred_at if event.occurred_at else event.created_at
+                logger.info(
+                    "  Event[%d]: id=%s service=%s occurred_at=%s created_at=%s embedding_present=%s",
+                    i,
+                    event.id,
+                    event.service,
+                    event.occurred_at.isoformat() if event.occurred_at else "NULL",
+                    event.created_at.isoformat() if event.created_at else "NULL",
+                    "yes" if event.embedding else "no",
+                )
+        else:
+            # Detailed diagnostics when no results
+            logger.warning(
+                "CLUSTER QUERY: No unclustered events found. Testing filters individually:"
+            )
+            
+            # Test each filter individually
+            only_null_cluster = session.query(RawEvent).filter(RawEvent.cluster_id.is_(None)).count()
+            only_with_embedding = session.query(RawEvent).filter(RawEvent.embedding.isnot(None)).count()
+            only_recent = session.query(RawEvent).filter(recency_check >= since).count()
+            
+            logger.warning(
+                "  Filter: cluster_id IS NULL → %d events",
+                only_null_cluster,
+            )
+            logger.warning(
+                "  Filter: embedding IS NOT NULL → %d events",
+                only_with_embedding,
+            )
+            logger.warning(
+                "  Filter: (occurred_at OR created_at) >= %s → %d events",
+                since.isoformat(),
+                only_recent,
+            )
+            
+            if project_id is not None:
+                only_project = session.query(RawEvent).filter(RawEvent.project_id == project_id).count()
+                logger.warning(
+                    "  Filter: project_id == %s → %d events",
+                    project_id,
+                    only_project,
+                )
+            
+            # Test filter combinations
+            null_and_embed = session.query(RawEvent).filter(
+                RawEvent.cluster_id.is_(None),
+                RawEvent.embedding.isnot(None),
+            ).count()
+            logger.warning(
+                "  Combined: cluster_id IS NULL AND embedding IS NOT NULL → %d events",
+                null_and_embed,
+            )
+            
+            null_embed_recent = session.query(RawEvent).filter(
+                RawEvent.cluster_id.is_(None),
+                RawEvent.embedding.isnot(None),
+                recency_check >= since,
+            ).count()
+            logger.warning(
+                "  Combined: cluster_id IS NULL AND embedding IS NOT NULL AND recent → %d events",
+                null_embed_recent,
+            )
+            
+            # Sample events to check occurred_at values
+            sample_events = session.query(RawEvent).filter(RawEvent.embedding.isnot(None)).limit(5).all()
+            if sample_events:
+                logger.warning("Sample embedded events (for occurred_at inspection):")
+                for event in sample_events:
+                    logger.warning(
+                        "  id=%s occurred_at=%s created_at=%s drift_sec=%d",
+                        event.id,
+                        event.occurred_at.isoformat() if event.occurred_at else "NULL",
+                        event.created_at.isoformat() if event.created_at else "NULL",
+                        int((datetime.now(timezone.utc) - (event.occurred_at or event.created_at or datetime.now(timezone.utc))).total_seconds()),
+                    )
+        
+        return results
 
     @staticmethod
     def _load_embeddings(events: Sequence[RawEvent]) -> Tuple[List[RawEvent], np.ndarray]:

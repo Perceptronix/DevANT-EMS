@@ -50,6 +50,11 @@ class ErrorAnalysis(BaseModel):
     evidence_count: int = Field(description="Number of evidence items used for reasoning")
     deployment_correlation: bool = Field(description="Whether a deployment correlation was found")
     historical_match: bool = Field(description="Whether historical incidents matched this one")
+    likely_culprit_commit: Optional[str] = Field(default=None, description="Most likely triggering commit SHA")
+    likely_developer_owner: Optional[str] = Field(default=None, description="Likely developer owner for the trigger")
+    suspect_files: List[str] = Field(default_factory=list, description="Likely culprit files")
+    regression_warnings: List[str] = Field(default_factory=list, description="Regression signals and warnings")
+    deployment_attribution: Dict[str, Any] = Field(default_factory=dict, description="Deployment attribution details")
 
 
 class ErrorAnalyzer:
@@ -93,7 +98,10 @@ class ErrorAnalyzer:
         cfg = get_config()
 
         if not cfg.groq.is_configured:
-            raise RuntimeError("Groq provider not configured")
+            self.llm = None
+            self.provider = "fallback"
+            logger.info("Groq provider not configured; using grounded fallback analysis")
+            return
 
         try:
             from langchain_groq import ChatGroq
@@ -199,6 +207,16 @@ class ErrorAnalyzer:
         deployment_correlation = evidence_bundle.get("deployment_correlation") or correlate_deployment_events(cluster)
         metrics_anomalies = evidence_bundle.get("metrics_anomalies") or self._extract_metrics_anomalies(cluster)
         regression_history = evidence_bundle.get("history") or evidence_bundle.get("regression_history") or []
+        commit_correlations = (
+            evidence_bundle.get("commit_correlations")
+            or evidence_bundle.get("incident_commit_correlations")
+            or evidence_bundle.get("commit_evidence")
+            or cluster.get("commit_correlations")
+            or []
+        )
+        suspect_files = self._extract_suspect_files(cluster, evidence_bundle, commit_correlations)
+        deployment_metadata = evidence_bundle.get("deployment_metadata") or evidence_bundle.get("deployment_attribution") or deployment_correlation
+        regression_warnings = evidence_bundle.get("regression_warnings") or self._build_regression_warnings(cluster, regression_history, deployment_metadata, commit_correlations)
 
         propagation = self.propagation_engine.infer(
             incident=incident.model_dump(),
@@ -218,8 +236,12 @@ class ErrorAnalyzer:
         return {
             "incident": incident.model_dump(),
             "deployment_correlation": deployment_correlation,
+            "deployment_metadata": deployment_metadata,
             "metrics_anomalies": metrics_anomalies,
             "regression_history": regression_history,
+            "commit_correlations": commit_correlations,
+            "suspect_files": suspect_files,
+            "regression_warnings": regression_warnings,
             "propagation": propagation,
             "causal_graph": causal_graph.summary(),
             "timeline": causal_graph.timeline(),
@@ -368,6 +390,27 @@ class ErrorAnalyzer:
                 f"- Deployment correlation: matched={deployment.get('matched', False)} score={deployment.get('score', 0):.2f}"
             )
 
+            deployment_metadata = operational_context.get("deployment_metadata", {})
+            if deployment_metadata:
+                context_parts.append(
+                    f"- Deployment attribution: deployment_id={deployment_metadata.get('deployment_id') or 'unknown'} provider={deployment_metadata.get('provider') or 'unknown'} commit={deployment_metadata.get('commit_sha') or 'unknown'}"
+                )
+
+            commit_correlations = operational_context.get("commit_correlations", [])
+            if commit_correlations:
+                context_parts.append("- Commit correlations:")
+                for idx, commit in enumerate(commit_correlations[:4]):
+                    if isinstance(commit, dict):
+                        context_parts.append(
+                            f"  - commit[{idx}]: sha={commit.get('commit_sha') or commit.get('sha') or 'unknown'} owner={commit.get('author') or commit.get('developer_owner') or 'unknown'} score={commit.get('confidence', commit.get('score', 0))}"
+                        )
+                    else:
+                        context_parts.append(f"  - commit[{idx}]: {commit}")
+
+            suspect_files = operational_context.get("suspect_files", [])
+            if suspect_files:
+                context_parts.append(f"- Suspect files: {', '.join(str(file) for file in suspect_files[:6])}")
+
             anomalies = operational_context.get("metrics_anomalies", [])
             for idx, anomaly in enumerate(anomalies[:4]):
                 context_parts.append(
@@ -391,6 +434,11 @@ class ErrorAnalyzer:
             if regression_history:
                 context_parts.append(f"- regression_history: {len(regression_history)} prior incident(s)")
 
+            regression_warnings = operational_context.get("regression_warnings", [])
+            if regression_warnings:
+                for idx, warning in enumerate(regression_warnings[:4]):
+                    context_parts.append(f"- regression_warning[{idx}]: {warning}")
+
         context_str = "\n".join(context_parts) if context_parts else "No additional context available."
         
         prompt = ChatPromptTemplate.from_messages([
@@ -400,6 +448,7 @@ class ErrorAnalyzer:
     - Do NOT invent deployments, commits, owners, metrics, or historical incidents.
     - Only use the provided, retrieved evidence and structured incident data.
     - Root cause must be grounded in timeline evidence, propagation order, deployment correlation, metrics anomalies, or regression history.
+    - If commit correlations, suspect files, or deployment attribution are provided, use them directly in the explanation.
     - Every factual claim MUST reference evidence by index, URL, or field from the evidence bundle or causal timeline.
     - If evidence is insufficient, respond with "Insufficient evidence" rather than guessing.
 
@@ -415,6 +464,7 @@ class ErrorAnalyzer:
 
     Output Requirements:
     - Provide a JSON object matching the required schema including `confidence`, `evidence_count`, `deployment_correlation`, and `historical_match`.
+    - Also populate `likely_culprit_commit`, `likely_developer_owner`, `suspect_files`, `regression_warnings`, and `deployment_attribution` when the evidence supports them.
     - Include a brief `reasoning` field that cites evidence items and causal timeline entries (e.g., "evidence[0].url", "timeline[2]", "propagation[1]").
 
     {format_instructions}"""),
@@ -461,8 +511,15 @@ class ErrorAnalyzer:
             "affected_orgs": cluster.get("affected_orgs", []),
             "modules": cluster.get("modules", []),
             "deployment_correlation": operational_context.get("deployment_correlation", {}),
+            "deployment_metadata": operational_context.get("deployment_metadata", {}),
             "metrics_anomalies": operational_context.get("metrics_anomalies", []),
             "regression_history": operational_context.get("regression_history", []),
+            "commit_correlations": operational_context.get("commit_correlations", []),
+            "suspect_files": operational_context.get("suspect_files", []),
+            "regression_warnings": operational_context.get("regression_warnings", []),
+            "likely_culprit_commit": analysis.likely_culprit_commit,
+            "likely_developer_owner": analysis.likely_developer_owner,
+            "deployment_attribution": analysis.deployment_attribution,
             "propagation_chain": operational_context.get("propagation", {}).get("propagation_chain", []),
             "causal_graph": operational_context.get("causal_graph", {}),
         }
@@ -481,8 +538,12 @@ class ErrorAnalyzer:
         operational_context = operational_context or self.build_operational_context(cluster, context)
         propagation = operational_context.get("propagation", {})
         deployment_correlation = operational_context.get("deployment_correlation", {})
+        deployment_metadata = operational_context.get("deployment_metadata", {})
         metrics_anomalies = operational_context.get("metrics_anomalies", [])
         regression_history = operational_context.get("regression_history", [])
+        commit_correlations = operational_context.get("commit_correlations", [])
+        suspect_files = operational_context.get("suspect_files", [])
+        regression_warnings = operational_context.get("regression_warnings", [])
 
         severity_data = infer_severity(
             signature=signature,
@@ -506,6 +567,13 @@ class ErrorAnalyzer:
             root_cause = "Recent deployment correlated with the first causal event"
         elif propagation.get("hypothesis", {}).get("hypothesis"):
             root_cause = propagation["hypothesis"]["hypothesis"]
+
+        likely_culprit_commit = None
+        likely_developer_owner = None
+        if commit_correlations:
+            top_commit = commit_correlations[0] if isinstance(commit_correlations[0], dict) else {}
+            likely_culprit_commit = top_commit.get("commit_sha") or top_commit.get("sha")
+            likely_developer_owner = top_commit.get("author") or top_commit.get("developer_owner") or top_commit.get("owner")
 
         timeline_bits = []
         for idx, event in enumerate(propagation.get("propagation_chain", [])[:5]):
@@ -536,11 +604,65 @@ class ErrorAnalyzer:
             "affected_orgs": affected_orgs,
             "modules": modules,
             "deployment_correlation": deployment_correlation,
+            "deployment_metadata": deployment_metadata,
             "metrics_anomalies": metrics_anomalies,
             "regression_history": regression_history,
+            "commit_correlations": commit_correlations,
+            "suspect_files": suspect_files,
+            "regression_warnings": regression_warnings,
+            "likely_culprit_commit": likely_culprit_commit,
+            "likely_developer_owner": likely_developer_owner,
+            "deployment_attribution": deployment_metadata,
             "propagation_chain": propagation.get("propagation_chain", []),
             "causal_graph": operational_context.get("causal_graph", {}),
         }
+
+    def _extract_suspect_files(
+        self,
+        cluster: Dict[str, Any],
+        evidence_bundle: Dict[str, Any],
+        commit_correlations: Any,
+    ) -> List[str]:
+        files: List[str] = []
+        for key in ("suspect_files", "changed_files", "files"):
+            value = cluster.get(key) or evidence_bundle.get(key) or []
+            if isinstance(value, str):
+                value = [value]
+            for item in value:
+                if item:
+                    files.append(str(item))
+
+        if isinstance(commit_correlations, list):
+            for commit in commit_correlations:
+                if isinstance(commit, dict):
+                    file_list = commit.get("files") or commit.get("suspect_files") or commit.get("changed_files") or []
+                    if isinstance(file_list, str):
+                        file_list = [file_list]
+                    for item in file_list:
+                        if item:
+                            files.append(str(item))
+
+        return list(dict.fromkeys(files))[:8]
+
+    def _build_regression_warnings(
+        self,
+        cluster: Dict[str, Any],
+        regression_history: List[Dict[str, Any]],
+        deployment_metadata: Any,
+        commit_correlations: Any,
+    ) -> List[str]:
+        warnings: List[str] = []
+        if cluster.get("historical_matches"):
+            warnings.append(f"Matches {len(cluster.get('historical_matches', []))} historical incident(s)")
+        if regression_history:
+            warnings.append(f"Regression history includes {len(regression_history)} prior incident(s)")
+        if isinstance(deployment_metadata, dict) and deployment_metadata.get("matched"):
+            warnings.append("Deployment correlation is strong enough to warrant rollback validation")
+        if isinstance(commit_correlations, list) and len(commit_correlations) >= 2:
+            warnings.append("Multiple commit correlations suggest repeated or incomplete remediation")
+        if cluster.get("regression_probability", 0) and float(cluster.get("regression_probability", 0) or 0) >= 0.6:
+            warnings.append("Cluster regression probability is elevated")
+        return warnings
     
     # =========================================================================
     # Status Determination

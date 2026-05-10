@@ -110,10 +110,11 @@ class OTLPClusteringOrchestrator:
                 event = session.query(RawEvent).filter(RawEvent.id == raw_event_id).first()
                 if event:
                     event.embedding = embedding.astype(np.float32).tolist()
-                    session.flush()
+                    session.commit()
                     result["embedding_stored"] = True
                     logger.info("Stored embedding for event %s", raw_event_id)
             except Exception as exc:
+                session.rollback()
                 result["error"] = f"Failed to store embedding: {exc}"
                 logger.error("Failed to store embedding for event %s: %s", raw_event_id, exc)
                 return result

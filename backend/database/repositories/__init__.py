@@ -12,6 +12,8 @@ from database.repositories.entities import (
     TicketRepository,
     MuteRepository,
     SignalFusionMetadataRepository,
+    IncidentCommitCorrelationRepository,
+    IncidentDeploymentCorrelationRepository,
 )
 
 __all__ = [
@@ -27,4 +29,6 @@ __all__ = [
     "TicketRepository",
     "MuteRepository",
     "SignalFusionMetadataRepository",
+    "IncidentCommitCorrelationRepository",
+    "IncidentDeploymentCorrelationRepository",
 ]

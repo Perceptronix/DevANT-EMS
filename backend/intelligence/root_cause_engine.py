@@ -23,6 +23,12 @@ class RootCauseHypothesis:
     risk_assessment: str = "unknown"
     evidence: List[Dict[str, Any]] = field(default_factory=list)
     correlated_deployments: List[str] = field(default_factory=list)
+    commit_evidence: List[Dict[str, Any]] = field(default_factory=list)
+    suspected_files: List[str] = field(default_factory=list)
+    likely_culprit_commit: Optional[str] = None
+    likely_developer_owner: Optional[str] = None
+    deployment_attribution: Dict[str, Any] = field(default_factory=dict)
+    regression_warnings: List[str] = field(default_factory=list)
     affected_services: List[str] = field(default_factory=list)
     recurrence_score: float = 0.0
     blast_radius: int = 0
@@ -41,8 +47,14 @@ class RootCauseEngine:
         signals = self._collect_signals(cluster)
         deployment_evidence = self._deployment_evidence(cluster, signals)
         commit_evidence = self._commit_evidence(cluster)
+        commit_records = self._commit_records(cluster)
         topology_evidence = self._topology_evidence(cluster)
         recurrence = self._recurrence_evidence(cluster, signals)
+        suspected_files = self._suspected_files(cluster, commit_records)
+        likely_culprit_commit = self._likely_commit(commit_records, deployment_evidence)
+        likely_developer_owner = self._likely_owner(cluster, commit_records)
+        deployment_attribution = self._deployment_attribution(cluster, deployment_evidence, commit_records)
+        regression_warnings = self._regression_warnings(cluster, recurrence, commit_records, deployment_evidence)
 
         likely_cause = self._infer_likely_cause(cluster, deployment_evidence, commit_evidence, topology_evidence, recurrence)
         severity = self._assess_severity(cluster, signals, recurrence)
@@ -50,7 +62,7 @@ class RootCauseEngine:
         risk_assessment = self._risk_assessment(severity, recurrence)
 
         summary = self._summary(cluster, likely_cause, deployment_evidence, topology_evidence)
-        actions = self._recommended_actions(cluster, severity, deployment_evidence, recurrence)
+        actions = self._recommended_actions(cluster, severity, deployment_evidence, recurrence, regression_warnings)
 
         self._update_memory(cluster, signals, recurrence)
 
@@ -63,6 +75,12 @@ class RootCauseEngine:
             risk_assessment=risk_assessment,
             evidence=[signal.to_dict() for signal in signals],
             correlated_deployments=[item.get("deployment_id", "") for item in deployment_evidence if item.get("deployment_id")],
+            commit_evidence=commit_records,
+            suspected_files=suspected_files,
+            likely_culprit_commit=likely_culprit_commit,
+            likely_developer_owner=likely_developer_owner,
+            deployment_attribution=deployment_attribution,
+            regression_warnings=regression_warnings,
             affected_services=self._affected_services(cluster),
             recurrence_score=recurrence,
             blast_radius=self._blast_radius(cluster),
@@ -145,6 +163,109 @@ class RootCauseEngine:
                 commits.extend([str(item) for item in value if item])
         commits.extend([str(item) for item in cluster.get("commit_shas", []) if item])
         return list(dict.fromkeys(commits))
+
+    def _commit_records(self, cluster: Dict[str, Any]) -> List[Dict[str, Any]]:
+        records: List[Dict[str, Any]] = []
+        candidates = cluster.get("commit_correlations") or cluster.get("incident_commit_correlations") or cluster.get("commits") or []
+
+        if isinstance(candidates, dict):
+            candidates = [candidates]
+
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                candidate = {"commit_sha": str(candidate)}
+
+            commit_sha = candidate.get("commit_sha") or candidate.get("sha") or candidate.get("hash")
+            if not commit_sha:
+                continue
+
+            files = candidate.get("suspect_files") or candidate.get("changed_files") or candidate.get("files") or []
+            if isinstance(files, str):
+                files = [files]
+
+            records.append({
+                "commit_sha": str(commit_sha),
+                "author": candidate.get("author") or candidate.get("developer_owner") or candidate.get("owner"),
+                "message": candidate.get("message") or candidate.get("title") or candidate.get("summary"),
+                "confidence": float(candidate.get("confidence", candidate.get("score", 0.0)) or 0.0),
+                "deployment_id": candidate.get("deployment_id") or candidate.get("deployment") or candidate.get("deployment_sha"),
+                "files": [str(item) for item in files if item],
+            })
+
+        return records
+
+    def _suspected_files(self, cluster: Dict[str, Any], commit_records: Sequence[Dict[str, Any]]) -> List[str]:
+        files: List[str] = []
+        for key in ("suspect_files", "changed_files", "files"):
+            value = cluster.get(key) or []
+            if isinstance(value, str):
+                value = [value]
+            for item in value:
+                if item:
+                    files.append(str(item))
+
+        for record in commit_records:
+            for item in record.get("files", []) or []:
+                if item:
+                    files.append(str(item))
+
+        return list(dict.fromkeys(files))[:8]
+
+    def _likely_commit(self, commit_records: Sequence[Dict[str, Any]], deployment_evidence: Sequence[Dict[str, Any]]) -> Optional[str]:
+        if commit_records:
+            ranked = sorted(commit_records, key=lambda item: float(item.get("confidence", 0.0) or 0.0), reverse=True)
+            return ranked[0].get("commit_sha")
+        for deployment in deployment_evidence:
+            commit_sha = deployment.get("commit_sha") or deployment.get("commit_hash")
+            if commit_sha:
+                return str(commit_sha)
+        return None
+
+    def _likely_owner(self, cluster: Dict[str, Any], commit_records: Sequence[Dict[str, Any]]) -> Optional[str]:
+        for key in ("developer_owner", "owner", "commit_owner"):
+            value = cluster.get(key)
+            if value:
+                return str(value)
+        for record in commit_records:
+            owner = record.get("author")
+            if owner:
+                return str(owner)
+        return None
+
+    def _deployment_attribution(
+        self,
+        cluster: Dict[str, Any],
+        deployment_evidence: Sequence[Dict[str, Any]],
+        commit_records: Sequence[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        deployment = deployment_evidence[0] if deployment_evidence else {}
+        return {
+            "matched": bool(deployment_evidence),
+            "deployment_id": deployment.get("deployment_id") or cluster.get("deployment_id"),
+            "provider": deployment.get("provider") or cluster.get("deployment_provider"),
+            "environment": deployment.get("environment") or cluster.get("deployment_environment"),
+            "service": deployment.get("service") or (self._affected_services(cluster)[0] if self._affected_services(cluster) else None),
+            "commit_sha": deployment.get("commit_sha") or (commit_records[0].get("commit_sha") if commit_records else cluster.get("commit_sha")),
+            "score": float(deployment.get("confidence", deployment.get("score", 0.0)) or 0.0),
+        }
+
+    def _regression_warnings(
+        self,
+        cluster: Dict[str, Any],
+        recurrence: float,
+        commit_records: Sequence[Dict[str, Any]],
+        deployment_evidence: Sequence[Dict[str, Any]],
+    ) -> List[str]:
+        warnings: List[str] = []
+        if recurrence >= 0.6:
+            warnings.append("High recurrence score indicates a likely regression pattern")
+        if cluster.get("historical_matches"):
+            warnings.append(f"Matches {len(cluster.get('historical_matches', []))} historical incident(s)")
+        if len(commit_records) >= 2:
+            warnings.append("Multiple correlated commits may indicate a repeated fix failure")
+        if deployment_evidence and commit_records:
+            warnings.append("Deployment and commit evidence align; verify whether the triggering deployment was rolled back")
+        return warnings
 
     def _topology_evidence(self, cluster: Dict[str, Any]) -> List[str]:
         services = self._affected_services(cluster)
@@ -261,13 +382,15 @@ class RootCauseEngine:
         topology_text = topology_evidence[0] if topology_evidence else "no significant propagation path"
         return f"Failure in {service_text} aligns with {likely_cause}. Deployment context: {deployment_text}. Propagation context: {topology_text}."
 
-    def _recommended_actions(self, cluster: Dict[str, Any], severity: str, deployment_evidence: Sequence[Dict[str, Any]], recurrence: float) -> List[str]:
+    def _recommended_actions(self, cluster: Dict[str, Any], severity: str, deployment_evidence: Sequence[Dict[str, Any]], recurrence: float, regression_warnings: Sequence[str]) -> List[str]:
         actions: List[str] = []
         if deployment_evidence:
             actions.append("Compare failing revision against the last successful deployment")
             actions.append("Evaluate rollback or hotfix for the triggering deployment")
         if recurrence >= 0.6:
             actions.append("Search historical incidents for the same regression lineage")
+        if regression_warnings:
+            actions.append("Review regression warnings and confirm whether the same fix already failed before")
         if severity in {"critical", "outage-risk"}:
             actions.append("Escalate to on-call and verify downstream blast radius")
         if not actions:

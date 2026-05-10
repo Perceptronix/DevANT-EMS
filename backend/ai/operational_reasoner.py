@@ -44,6 +44,11 @@ class OperationalReasoner:
                 "likely_cause": parsed.get("likely_cause") or hypothesis.likely_cause,
                 "recommended_actions": parsed.get("recommended_actions") or hypothesis.recommended_actions,
                 "risk_assessment": parsed.get("risk_assessment") or hypothesis.risk_assessment,
+                "likely_culprit_commit": parsed.get("likely_culprit_commit") or hypothesis.likely_culprit_commit,
+                "likely_developer_owner": parsed.get("likely_developer_owner") or hypothesis.likely_developer_owner,
+                "suspect_files": parsed.get("suspect_files") or hypothesis.suspected_files,
+                "regression_warnings": parsed.get("regression_warnings") or hypothesis.regression_warnings,
+                "deployment_attribution": parsed.get("deployment_attribution") or hypothesis.deployment_attribution,
                 "grounding": self._grounding(cluster, context, hypothesis),
             })
             return parsed
@@ -59,10 +64,11 @@ Operational grounding:
 {json.dumps(ground, indent=2)[:6000]}
 
 Return JSON with keys:
-operational_summary, likely_cause, confidence, recommended_actions, risk_assessment.
+operational_summary, likely_cause, confidence, recommended_actions, risk_assessment, likely_culprit_commit, likely_developer_owner, suspect_files, regression_warnings, deployment_attribution.
 
 Rules:
 - Reference the exact deployment failure, workflow step, changed files, affected services, and historical incident match if present.
+- Prefer the provided commit correlation, suspect file, and deployment attribution fields when they exist.
 - Do not produce a generic template.
 - If evidence is weak, say so explicitly and lower confidence.
 """
@@ -80,8 +86,12 @@ Rules:
             },
             "context": {
                 "deployment_correlation": context.get("deployment_correlation", {}),
+                "deployment_metadata": context.get("deployment_metadata", {}),
                 "metrics_anomalies": context.get("metrics_anomalies", []),
                 "regression_history": context.get("regression_history", []),
+                "commit_correlations": context.get("commit_correlations", []),
+                "suspect_files": context.get("suspect_files", []),
+                "regression_warnings": context.get("regression_warnings", []),
                 "propagation_chain": context.get("propagation_chain", []),
             },
             "hypothesis": {
@@ -91,6 +101,11 @@ Rules:
                 "severity": hypothesis.severity,
                 "recommended_actions": hypothesis.recommended_actions,
                 "risk_assessment": hypothesis.risk_assessment,
+                "likely_culprit_commit": hypothesis.likely_culprit_commit,
+                "likely_developer_owner": hypothesis.likely_developer_owner,
+                "suspect_files": hypothesis.suspected_files,
+                "regression_warnings": hypothesis.regression_warnings,
+                "deployment_attribution": hypothesis.deployment_attribution,
             },
         }
 
@@ -127,5 +142,10 @@ Rules:
             "recommended_actions": hypothesis.recommended_actions,
             "risk_assessment": hypothesis.risk_assessment,
             "severity": hypothesis.severity,
+            "likely_culprit_commit": hypothesis.likely_culprit_commit,
+            "likely_developer_owner": hypothesis.likely_developer_owner,
+            "suspect_files": hypothesis.suspected_files,
+            "regression_warnings": hypothesis.regression_warnings,
+            "deployment_attribution": hypothesis.deployment_attribution,
             "grounding": self._grounding(cluster, context, hypothesis),
         }

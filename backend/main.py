@@ -242,7 +242,7 @@ async def lifespan(app: FastAPI):
     
     # Start scheduled cluster processing pipeline (runs every 5 minutes)
     try:
-        from orchestration.cluster_scheduler import start_scheduler
+        from orchestrator.cluster_scheduler import start_scheduler
 
         start_scheduler()
         logger.info("Scheduled cluster processing enabled")
@@ -253,7 +253,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown: stop scheduler
     try:
-        from orchestration.cluster_scheduler import stop_scheduler
+        from orchestrator.cluster_scheduler import stop_scheduler
 
         stop_scheduler()
     except Exception as exc:

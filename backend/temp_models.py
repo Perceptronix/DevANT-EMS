@@ -5,17 +5,15 @@ Provides type-safe database abstraction for all DevANT entities.
 """
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+import sqlalchemy as sa
 from sqlalchemy import (
     Column, String, Integer, Float, DateTime, Boolean,
     ForeignKey, JSON, Index, Text, TIMESTAMP
 )
+from .pgvector_compat import Vector, JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import uuid
-
-from database.pgvector_compat import Vector, JSONB as JSONBType, UUID
-
-JSONB = JSONBType()
 
 Base = declarative_base()
 
@@ -60,7 +58,7 @@ class RawEvent(Base):
     embedding = Column(Vector(384), nullable=True)
     cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="SET NULL"), nullable=True)
     fingerprint = Column(String(255), nullable=True)
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB(), default={})
     occurred_at = Column(TIMESTAMP(timezone=True), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -174,7 +172,7 @@ class Incident(Base):
     title = Column(String(512), nullable=True)
     summary = Column(Text, nullable=True)
     root_cause = Column(Text, nullable=True)
-    recommendations = Column(JSONB, default={})
+    recommendations = Column(JSONB(), default={})
     ai_confidence = Column(Float, default=0.0)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -213,7 +211,7 @@ class Alert(Base):
     incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False)
     channel = Column(String(50), nullable=False)  # 'slack', 'email', 'linear'
     status = Column(String(50), default="pending")  # 'pending', 'sent', 'failed'
-    payload = Column(JSONB, default={})
+    payload = Column(JSONB(), default={})
     sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -245,7 +243,7 @@ class GitHubEvent(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     event_type = Column(String(50), nullable=False)  # 'push', 'pull_request', 'issue'
-    payload = Column(JSONB, default={})
+    payload = Column(JSONB(), default={})
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
     # Relationships
@@ -275,7 +273,7 @@ class Deployment(Base):
     provider = Column(String(50), nullable=False)  # 'vercel', 'github-actions', 'terraform'
     deployment_id = Column(String(255), nullable=False)  # External ID
     status = Column(String(50), nullable=True)  # 'success', 'failed', 'in_progress'
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB(), default={})
     deployed_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -366,39 +364,6 @@ class Mute(Base):
         }
 
 
-class SignalFusionMetadata(Base):
-    """Metadata for signal fusion and operational context."""
-    __tablename__ = "signal_fusion_metadata"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="CASCADE"), nullable=False)
-    deployment_correlation = Column(Float, default=0.0)
-    temporal_proximity = Column(Float, default=0.0)
-    service_overlap_score = Column(Float, default=0.0)
-    propagation_path = Column(Text, nullable=True)
-    extra_metadata = Column(JSONB, default={})
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
-
-    # Relationships
-    cluster = relationship("ErrorCluster", back_populates="signal_fusion")
-
-    __table_args__ = (
-        Index("idx_signal_fusion_cluster", "cluster_id"),
-    )
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "id": str(self.id),
-            "cluster_id": str(self.cluster_id),
-            "deployment_correlation": self.deployment_correlation,
-            "temporal_proximity": self.temporal_proximity,
-            "service_overlap_score": self.service_overlap_score,
-            "propagation_path": self.propagation_path,
-            "metadata": self.metadata,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-
 class GitHubRepository(Base):
     """GitHub repository metadata."""
     __tablename__ = "github_repositories"
@@ -411,11 +376,12 @@ class GitHubRepository(Base):
     url = Column(String(512), nullable=True)
     default_branch = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB(), default={})
     synced_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Relationships
     project = relationship("Project", backref="github_repositories")
     commits = relationship("GitHubCommit", back_populates="repository", cascade="all, delete-orphan")
     pull_requests = relationship("GitHubPullRequest", back_populates="repository", cascade="all, delete-orphan")
@@ -450,7 +416,7 @@ class GitHubCommit(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     repository_id = Column(UUID(as_uuid=True), ForeignKey("github_repositories.id", ondelete="CASCADE"), nullable=False)
-    sha = Column(String(40), nullable=False)
+    sha = Column(String(40), nullable=False)  # Git commit SHA
     author = Column(String(255), nullable=True)
     message = Column(Text, nullable=True)
     files_changed = Column(Integer, nullable=True)
@@ -458,10 +424,11 @@ class GitHubCommit(Base):
     deletions = Column(Integer, nullable=True)
     url = Column(String(512), nullable=True)
     committed_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    changed_files = Column(JSONB, default=list)
-    extra_metadata = Column(JSONB, default={})
+    changed_files = Column(JSONB(), default=list)
+    extra_metadata = Column(JSONB(), default={})
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
+    # Relationships
     repository = relationship("GitHubRepository", back_populates="commits")
 
     __table_args__ = (
@@ -497,7 +464,7 @@ class GitHubPullRequest(Base):
     number = Column(Integer, nullable=False)
     title = Column(String(512), nullable=True)
     author = Column(String(255), nullable=True)
-    state = Column(String(50), nullable=True)
+    state = Column(String(50), nullable=True)  # 'open', 'closed'
     merged = Column(Boolean, default=False)
     merged_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at_gh = Column(TIMESTAMP(timezone=True), nullable=True)
@@ -507,9 +474,10 @@ class GitHubPullRequest(Base):
     files_changed = Column(Integer, nullable=True)
     additions = Column(Integer, nullable=True)
     deletions = Column(Integer, nullable=True)
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB(), default={})
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
+    # Relationships
     repository = relationship("GitHubRepository", back_populates="pull_requests")
 
     __table_args__ = (
@@ -547,17 +515,18 @@ class GitHubDeployment(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     repository_id = Column(UUID(as_uuid=True), ForeignKey("github_repositories.id", ondelete="CASCADE"), nullable=False)
-    deployment_id = Column(String(255), nullable=False)
+    deployment_id = Column(String(255), nullable=False)  # GitHub deployment ID
     ref = Column(String(255), nullable=True)
     sha = Column(String(40), nullable=True)
-    environment = Column(String(255), nullable=True)
-    status = Column(String(50), nullable=True)
+    environment = Column(String(255), nullable=True)  # e.g., 'production', 'staging'
+    status = Column(String(50), nullable=True)  # 'pending', 'success', 'failure'
     url = Column(String(512), nullable=True)
     creator = Column(String(255), nullable=True)
     deployed_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB(), default={})
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
+    # Relationships
     repository = relationship("GitHubRepository", back_populates="deployments")
 
     __table_args__ = (
@@ -590,19 +559,20 @@ class GitHubWorkflow(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     repository_id = Column(UUID(as_uuid=True), ForeignKey("github_repositories.id", ondelete="CASCADE"), nullable=False)
-    workflow_id = Column(String(255), nullable=False)
+    workflow_id = Column(String(255), nullable=False)  # GitHub workflow run ID
     name = Column(String(512), nullable=True)
-    status = Column(String(50), nullable=True)
-    conclusion = Column(String(50), nullable=True)
+    status = Column(String(50), nullable=True)  # 'queued', 'in_progress', 'completed'
+    conclusion = Column(String(50), nullable=True)  # 'success', 'failure', 'neutral', etc.
     ref = Column(String(255), nullable=True)
     sha = Column(String(40), nullable=True)
     actor = Column(String(255), nullable=True)
     started_at = Column(TIMESTAMP(timezone=True), nullable=True)
     completed_at = Column(TIMESTAMP(timezone=True), nullable=True)
     url = Column(String(512), nullable=True)
-    extra_metadata = Column(JSONB, default={})
+    extra_metadata = Column(JSONB(), default={})
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
+    # Relationships
     repository = relationship("GitHubRepository", back_populates="workflows")
 
     __table_args__ = (
@@ -640,8 +610,8 @@ class IncidentCommitCorrelation(Base):
     cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="CASCADE"), nullable=True)
     representative_event_id = Column(UUID(as_uuid=True), ForeignKey("raw_events.id", ondelete="SET NULL"), nullable=True)
     repository_id = Column(UUID(as_uuid=True), ForeignKey("github_repositories.id", ondelete="SET NULL"), nullable=True)
-    suspect_commits = Column(JSONB, default=list)
-    likely_changed_files = Column(JSONB, default=list)
+    suspect_commits = Column(JSONB(), default=list)
+    likely_changed_files = Column(JSONB(), default=list)
     confidence_score = Column(Float, default=0.0)
     service_match_score = Column(Float, default=0.0)
     deployment_timing_score = Column(Float, default=0.0)
@@ -684,7 +654,7 @@ class IncidentDeploymentCorrelation(Base):
     incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False)
     cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="CASCADE"), nullable=True)
     representative_event_id = Column(UUID(as_uuid=True), ForeignKey("raw_events.id", ondelete="SET NULL"), nullable=True)
-    suspect_deployments = Column(JSONB, default=list)
+    suspect_deployments = Column(JSONB(), default=list)
     confidence_score = Column(Float, default=0.0)
     temporal_proximity_score = Column(Float, default=0.0)
     service_match_score = Column(Float, default=0.0)
@@ -692,6 +662,7 @@ class IncidentDeploymentCorrelation(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
 
+    # Relationships
     incident = relationship("Incident", back_populates="deployment_correlations")
 
     __table_args__ = (
@@ -716,17 +687,36 @@ class IncidentDeploymentCorrelation(Base):
         }
 
 
-class SignatureState(Base):
-    """Compatibility storage for signature-based JSON state."""
-    __tablename__ = "signature_states"
+class SignalFusionMetadata(Base):
+    """Signal fusion metadata for cluster analysis."""
+    __tablename__ = "signal_fusion_metadata"
 
-    signature = Column(String(1024), primary_key=True)
-    data = Column(JSONB, default={})
-    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cluster_id = Column(UUID(as_uuid=True), ForeignKey("error_clusters.id", ondelete="CASCADE"), nullable=False)
+    deployment_correlation = Column(Float, default=0.0)
+    temporal_proximity = Column(Float, default=0.0)
+    service_overlap_score = Column(Float, default=0.0)
+    propagation_path = Column(Text, nullable=True)
+    extra_metadata = Column(JSONB(), default={})
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=datetime.utcnow)
+
+    # Relationships
+    cluster = relationship("ErrorCluster", back_populates="signal_fusion")
+
+    __table_args__ = (
+        Index("idx_signal_fusion_cluster", "cluster_id"),
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "signature": self.signature,
-            "data": self.data,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "id": str(self.id),
+            "cluster_id": str(self.cluster_id),
+            "deployment_correlation": self.deployment_correlation,
+            "temporal_proximity": self.temporal_proximity,
+            "service_overlap_score": self.service_overlap_score,
+            "propagation_path": self.propagation_path,
+            "extra_metadata": self.extra_metadata,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, Search, Square } from 'lucide-react'
 
+import GitHubCorrelationDashboard from '@/components/GitHubCorrelationDashboard'
 import PipelineTimeline from '@/components/PipelineTimeline'
 import useSSE from '@/hooks/useSSE'
 import { Button } from '@/components/ui/button'
@@ -484,6 +485,10 @@ export default function App() {
             <p className="text-sm text-muted-foreground">{activeSnapshot.error ?? 'An unexpected error occurred during analysis.'}</p>
           </section>
         ) : null}
+
+        {activeSnapshot && (
+          <GitHubCorrelationDashboard snapshot={activeSnapshot} />
+        )}
 
         {/* ── SECTION 2: Active Operational Incidents ── */}
         {Array.isArray(evidence?.live_errors) && (evidence.live_errors as any[]).length > 0 && (

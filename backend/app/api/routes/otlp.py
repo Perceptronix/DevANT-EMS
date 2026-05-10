@@ -269,20 +269,58 @@ def normalize_otlp_log_records(records: list[dict[str, Any]], project_id: str) -
 
 
 def _coerce_occurred_at(timestamp: Any) -> datetime:
-    """Convert an OTLP timestamp into a timezone-aware datetime."""
+    """Convert an OTLP timestamp into a timezone-aware UTC datetime.
+    
+    OTLP timestamps are typically in nanoseconds since Unix epoch.
+    Fallback to current ingestion time if timestamp is missing/invalid/stale.
+    """
+    now_utc = datetime.now(timezone.utc)
+    
     if timestamp in (None, ""):
-        return datetime.now(timezone.utc)
+        logger.debug("OTLP timestamp: missing, using current UTC: %s", now_utc.isoformat())
+        return now_utc
 
     try:
+        # Parse timestamp (handle string or numeric formats)
         if isinstance(timestamp, str):
             timestamp = int(timestamp)
+        
         if isinstance(timestamp, (int, float)):
+            # Convert from nanoseconds to seconds
             seconds = float(timestamp) / 1_000_000_000
-            return datetime.fromtimestamp(seconds, tz=timezone.utc)
-    except Exception:
+            occurred_at = datetime.fromtimestamp(seconds, tz=timezone.utc)
+            
+            # Check for unreasonable drift (more than 24 hours in past or 1 hour in future)
+            drift = (now_utc - occurred_at).total_seconds()
+            MAX_PAST_DRIFT = 86400  # 24 hours
+            MAX_FUTURE_DRIFT = 3600  # 1 hour
+            
+            if drift > MAX_PAST_DRIFT or drift < -MAX_FUTURE_DRIFT:
+                logger.warning(
+                    "OTLP timestamp drift: parsed=%s drift_seconds=%d max_past=%d max_future=%d. Using current UTC.",
+                    occurred_at.isoformat(),
+                    drift,
+                    MAX_PAST_DRIFT,
+                    -MAX_FUTURE_DRIFT,
+                )
+                return now_utc
+            
+            logger.debug(
+                "OTLP timestamp: parsed=%s drift_seconds=%d status=OK",
+                occurred_at.isoformat(),
+                drift,
+            )
+            return occurred_at
+            
+    except Exception as exc:
+        logger.warning(
+            "OTLP timestamp parse error: timestamp=%s error=%s. Using current UTC.",
+            timestamp,
+            exc,
+        )
         pass
 
-    return datetime.now(timezone.utc)
+    return now_utc
 
 
 def _build_otlp_fingerprint(service: str, message: str, stack_trace: str | None) -> str:
@@ -313,8 +351,13 @@ def persist_normalized_otlp_records(records: list[dict[str, Any]], project_id: s
     persisted = 0
     try:
         raw_event_repo = RawEventRepository(session)
+        now_utc = datetime.now(timezone.utc)
+        
         for index, record in enumerate(records):
             try:
+                occurred_at = record["occurred_at"]
+                drift = (now_utc - occurred_at).total_seconds()
+                
                 raw_event_repo.create(
                     project_id=record["project_id"],
                     source_type=record["source_type"],
@@ -324,7 +367,16 @@ def persist_normalized_otlp_records(records: list[dict[str, Any]], project_id: s
                     stack_trace=record.get("stack_trace"),
                     fingerprint=record["fingerprint"],
                     extra_metadata=record["extra_metadata"],
-                    occurred_at=record["occurred_at"],
+                    occurred_at=occurred_at,
+                )
+                
+                logger.info(
+                    "OTLP persisted: index=%d service=%s fingerprint=%s occurred_at=%s drift_sec=%d",
+                    index,
+                    record.get("service"),
+                    record.get("fingerprint")[:8],
+                    occurred_at.isoformat(),
+                    int(drift),
                 )
                 persisted += 1
             except Exception as exc:
@@ -337,6 +389,22 @@ def persist_normalized_otlp_records(records: list[dict[str, Any]], project_id: s
                     exc,
                     exc_info=True,
                 )
+        
+        # Validate: ensure persisted events fall within clustering lookback (5 minutes)
+        if persisted > 0:
+            from datetime import timedelta
+            lookback_cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+            recent_count = session.query(RawEvent).filter(
+                RawEvent.project_id == project_id,
+                RawEvent.occurred_at >= lookback_cutoff,
+            ).count()
+            logger.info(
+                "OTLP persist validation: persisted=%d recent_events(lookback=5m)=%d cutoff=%s",
+                persisted,
+                recent_count,
+                lookback_cutoff.isoformat(),
+            )
+        
         return persisted
     finally:
         session.close()

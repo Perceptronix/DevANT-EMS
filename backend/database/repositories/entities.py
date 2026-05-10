@@ -10,7 +10,9 @@ from sqlalchemy import and_, or_, desc
 from database.models import (
     Project, RawEvent, ErrorCluster, ClusterEmbedding,
     Incident, Alert, GitHubEvent, Deployment, Ticket, Mute,
-    SignalFusionMetadata
+    SignalFusionMetadata,
+    IncidentCommitCorrelation,
+    IncidentDeploymentCorrelation,
 )
 from database.repositories.base import BaseRepository
 
@@ -350,6 +352,38 @@ class SignalFusionMetadataRepository(BaseRepository[SignalFusionMetadata]):
         return (
             self.db.query(SignalFusionMetadata)
             .filter(SignalFusionMetadata.deployment_correlation >= threshold)
+            .all()
+        )
+
+
+class IncidentCommitCorrelationRepository(BaseRepository[IncidentCommitCorrelation]):
+    """Repository for IncidentCommitCorrelation entity."""
+
+    def __init__(self, db: Session):
+        super().__init__(db, IncidentCommitCorrelation)
+
+    def get_by_incident(self, incident_id: Any) -> List[IncidentCommitCorrelation]:
+        """Get commit correlations for an incident."""
+        return (
+            self.db.query(IncidentCommitCorrelation)
+            .filter(IncidentCommitCorrelation.incident_id == incident_id)
+            .order_by(desc(IncidentCommitCorrelation.confidence_score))
+            .all()
+        )
+
+
+class IncidentDeploymentCorrelationRepository(BaseRepository[IncidentDeploymentCorrelation]):
+    """Repository for IncidentDeploymentCorrelation entity."""
+
+    def __init__(self, db: Session):
+        super().__init__(db, IncidentDeploymentCorrelation)
+
+    def get_by_incident(self, incident_id: Any) -> List[IncidentDeploymentCorrelation]:
+        """Get deployment correlations for an incident."""
+        return (
+            self.db.query(IncidentDeploymentCorrelation)
+            .filter(IncidentDeploymentCorrelation.incident_id == incident_id)
+            .order_by(desc(IncidentDeploymentCorrelation.confidence_score))
             .all()
         )
 
